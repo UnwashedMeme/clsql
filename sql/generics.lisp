@@ -18,6 +18,11 @@
 
 
 ;; FDML
+(defgeneric choose-database-for-instance (object &optional database)
+  (:documentation "Used by the oodml functions to select which
+ database object to use. Chooses the database associated with the
+ object primarily, falls back to the database provided as an argument
+ or the *DEFAULT-DATABASE*."))
 
 (defgeneric execute-command (expression &key database)
   (:documentation
@@ -82,7 +87,7 @@ case, a record is created in the appropriate table of DATABASE
 using values from the slot values of OBJECT, and OBJECT becomes
 associated with DATABASE."))
 
-(defgeneric delete-instance-records (object)
+(defgeneric delete-instance-records (object &key database)
   (:documentation
    "Deletes the records represented by OBJECT in the appropriate
 table of the database associated with OBJECT. If OBJECT is not

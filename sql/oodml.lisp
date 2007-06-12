@@ -93,6 +93,17 @@
               (push (cons slotdef res) sels))))))
     sels))
 
+(defmethod choose-database-for-instance ((obj standard-db-object) &optional database)
+  "Determine which database connection to use for a standard-db-object.
+        Errs if none is available."
+  (or (find-if #'(lambda (db)
+                   (and db (is-database-open db)))
+               (list (view-database obj)
+                     database
+                     *default-database*))
+      (signal-no-database-error nil)))
+
+
 
 ;; Called by 'get-slot-values-from-view'
 ;;
@@ -105,9 +116,9 @@
     (cond ((and value (null slot-reader))
            (setf (slot-value instance slot-name)
                  (read-sql-value value (delistify slot-type)
-                                 (view-database instance)
+                                 (choose-database-for-instance instance)
                                  (database-underlying-type
-                                  (view-database instance)))))
+                                  (choose-database-for-instance instance)))))
           ((null value)
            (update-slot-with-null instance slot-name slotdef))
           ((typep slot-reader 'string)
@@ -170,7 +181,7 @@
 
 (defmethod update-record-from-slot ((obj standard-db-object) slot &key
                                     (database *default-database*))
-  (let* ((database (or (view-database obj) database))
+  (let* ((database (choose-database-for-instance obj database))
          (view-class (class-of obj)))
     (when (normalizedp view-class)
       ;; If it's normalized, find the class that actually contains
@@ -213,7 +224,7 @@
       (update-record-from-slot obj slot :database database))
     (return-from update-record-from-slots (values)))
 
-  (let* ((database (or (view-database obj) database))
+  (let* ((database (choose-database-for-instance obj database))
          (vct (view-table (class-of obj)))
          (sds (slotdefs-for-slots-with-class slots (class-of obj)))
          (avps (mapcar #'(lambda (s)
@@ -244,7 +255,7 @@
 
 (defmethod update-records-from-instance ((obj standard-db-object)
                                          &key database this-class)
-  (let ((database (or database (view-database obj) *default-database*))
+  (let ((database (choose-database-for-instance obj database))
         (pk nil))
     (labels ((slot-storedp (slot)
                (and (member (view-class-slot-db-kind slot) '(:base :key))
@@ -276,6 +287,8 @@
                       (not record-values))
                  nil)
                 ((view-database obj)
+                 ;; if this slot is set, the database object was returned from a select
+                 ;; and has already been in the database, so we must need an update
                  (update-records (sql-expression :table view-class-table)
                                  :av-pairs record-values
                                  :where (key-qualifier-for-instance
@@ -339,7 +352,7 @@
       (setf pres (update-instance-from-records instance :database database
                                                :this-class pclass)))
     (let* ((view-table (sql-expression :table (view-table view-class)))
-           (vd (or (view-database instance) database))
+           (vd (choose-database-for-instance instance database))
            (view-qual (key-qualifier-for-instance instance :database vd
                                                            :this-class view-class))
            (sels (generate-selection-list view-class))
@@ -371,7 +384,7 @@
                                  (ordered-class-direct-slots this-class)))
                  this-class))))
     (let* ((view-table (sql-expression :table (view-table view-class)))
-           (vd (or (view-database instance) database))
+           (vd (choose-database-for-instance instance database))
            (view-qual (key-qualifier-for-instance instance :database vd
                                                            :this-class view-class))
            (att-ref (generate-attribute-reference view-class slot-def))
@@ -770,10 +783,10 @@
                                 :table jc-view-table))
                           :where jq
                           :result-types :auto
-                          :database (view-database object))))
+                          :database (choose-database-for-instance object))))
            (mapcar #'(lambda (i)
                        (let* ((instance (car i))
-                              (jcc (make-instance jc :view-database (view-database instance))))
+                              (jcc (make-instance jc :view-database (choose-database-for-instance instance))))
                          (setf (slot-value jcc (gethash :foreign-key dbi))
                                key)
                          (setf (slot-value jcc (gethash :home-key tdbi))
@@ -784,8 +797,8 @@
          ;; just fill in minimal slots
          (mapcar
           #'(lambda (k)
-              (let ((instance (make-instance tsc :view-database (view-database object)))
-                    (jcc (make-instance jc :view-database (view-database object)))
+              (let ((instance (make-instance tsc :view-database (choose-database-for-instance object)))
+                    (jcc (make-instance jc :view-database (choose-database-for-instance object)))
                     (fk (car k)))
                 (setf (slot-value instance (gethash :home-key tdbi)) fk)
                 (setf (slot-value jcc (gethash :foreign-key dbi))
@@ -796,7 +809,7 @@
           (select (sql-expression :attribute (gethash :foreign-key tdbi) :table jc-view-table)
                   :from (sql-expression :table jc-view-table)
                   :where jq
-                  :database (view-database object))))))))
+                  :database (choose-database-for-instance object))))))))
 
 
 ;;; Remote Joins
