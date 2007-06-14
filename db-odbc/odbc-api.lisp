@@ -239,7 +239,7 @@ as possible second argument) to the desired representation of date/time/timestam
     (SQLTransact
      henv hdbc $SQL_ROLLBACK)))
 
-; col-nr is zero-based in Lisp
+; col-nr is zero-based in Lisp but 1 based in sql
 ; col-nr = :bookmark retrieves a bookmark.
 (defun %bind-column (hstmt column-nr c-type data-ptr precision out-len-ptr)
   (with-error-handling
@@ -493,6 +493,7 @@ as possible second argument) to the desired representation of date/time/timestam
            (deref-pointer column-nullable-p-ptr :short)))))))
 
 ;; parameter counting is 1-based
+;; this function isn't used, which is good because FreeTDS dosn't support it.
 (defun %describe-parameter (hstmt parameter-nr)
   (with-foreign-objects ((column-sql-type-ptr :short)
                          (column-precision-ptr #.$ODBC-ULONG-TYPE)
@@ -583,8 +584,9 @@ as possible second argument) to the desired representation of date/time/timestam
 (defun sql-to-c-type (sql-type)
   (ecase sql-type
     ((#.$SQL_CHAR #.$SQL_VARCHAR #.$SQL_LONGVARCHAR
-      #.$SQL_NUMERIC #.$SQL_DECIMAL #.$SQL_BIGINT -8 -9 -10) $SQL_C_CHAR) ;; Added -10 for MSSQL ntext type
+      #.$SQL_NUMERIC #.$SQL_DECIMAL -8 -9 -10) $SQL_C_CHAR) ;; Added -10 for MSSQL ntext type
     (#.$SQL_INTEGER $SQL_C_SLONG)
+    (#.$SQL_BIGINT $SQL_C_SBIGINT)
     (#.$SQL_SMALLINT $SQL_C_SSHORT)
     (#.$SQL_DOUBLE $SQL_C_DOUBLE)
     (#.$SQL_FLOAT $SQL_C_DOUBLE)
@@ -603,6 +605,7 @@ as possible second argument) to the desired representation of date/time/timestam
 (def-type short-pointer-type (* :short))
 (def-type int-pointer-type (* :int))
 (def-type long-pointer-type (* #.$ODBC-LONG-TYPE))
+(def-type big-pointer-type (* #.$ODBC-BIG-TYPE))
 (def-type float-pointer-type (* :float))
 (def-type double-pointer-type (* :double))
 (def-type string-pointer-type (* :unsigned-char))
@@ -622,6 +625,10 @@ as possible second argument) to the desired representation of date/time/timestam
 (defun get-cast-long (ptr)
   (locally (declare (type long-pointer-type ptr))
     (deref-pointer ptr #.$ODBC-LONG-TYPE)))
+
+(defun get-cast-big (ptr)
+  (locally (declare (type big-pointer-type ptr))
+    (deref-pointer ptr #.$ODBC-BIG-TYPE)))
 
 (defun get-cast-single-float (ptr)
   (locally (declare (type float-pointer-type ptr))
@@ -669,8 +676,7 @@ as possible second argument) to the desired representation of date/time/timestam
                    (#.$SQL_C_SSHORT (get-cast-short data-ptr)) ;; ?
                    (#.$SQL_SMALLINT (get-cast-short data-ptr)) ;; ??
                    (#.$SQL_INTEGER (get-cast-int data-ptr))
-                   (#.$SQL_BIGINT (read-from-string
-                                   (get-cast-foreign-string data-ptr)))
+                   (#.$SQL_BIGINT (get-cast-big data-ptr))
                    (#.$SQL_DECIMAL
                     (let ((*read-base* 10))
                       (read-from-string (get-cast-foreign-string data-ptr))))
@@ -700,6 +706,8 @@ as possible second argument) to the desired representation of date/time/timestam
                        (get-cast-binary data-ptr out-len *binary-format*))
                       ((#.$SQL_C_SSHORT #.$SQL_C_STINYINT) ; LMH short ints
                        (get-cast-short data-ptr)) ; LMH
+                      (#.$SQL_C_SBIGINT (uffi:allocate-foreign-object #.$ODBC-BIG-TYPE)
+                       (get-cast-short data-ptr))
                       #+ignore
                       (#.$SQL_C_CHAR
                        (code-char (get-cast-short data-ptr)))
@@ -739,6 +747,7 @@ as possible second argument) to the desired representation of date/time/timestam
             (#.$SQL_C_DOUBLE (uffi:allocate-foreign-object :double))
             (#.$SQL_C_BIT (uffi:allocate-foreign-object :byte))
             (#.$SQL_C_STINYINT (uffi:allocate-foreign-object :byte))
+            (#.$SQL_C_SBIGINT (uffi:allocate-foreign-object #.$ODBC-BIG-TYPE))
             (#.$SQL_C_SSHORT (uffi:allocate-foreign-object :short))
             (#.$SQL_C_CHAR (uffi:allocate-foreign-string (1+ size)))
             (#.$SQL_C_BINARY (uffi:allocate-foreign-string (1+ (* 2 size))))

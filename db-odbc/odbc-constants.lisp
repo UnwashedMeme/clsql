@@ -19,6 +19,7 @@
 ;; on SuSE AMD64 9.0, unixODBC is compiled with with SQLLEN being 4 bytes long
 (defconstant $ODBC-LONG-TYPE :int)
 (defconstant $ODBC-ULONG-TYPE :unsigned-int)
+(defconstant $ODBC-BIG-TYPE :long-long)
 
 ;; (defconstant $ODBCVER        #x0210)
 
@@ -932,6 +933,7 @@
 (defconstant $SQL_C_BINARY $SQL_BINARY)
 (defconstant $SQL_C_BIT $SQL_BIT)
 (defconstant $SQL_C_TINYINT $SQL_TINYINT)
+(defconstant $SQL_C_SBIGINT (+ $SQL_BIGINT $SQL_SIGNED_OFFSET))
 (defconstant $SQL_C_SLONG (+ $SQL_C_LONG $SQL_SIGNED_OFFSET)) ;; SIGNED INTEGER
 (defconstant $SQL_C_SSHORT (+ $SQL_C_SHORT $SQL_SIGNED_OFFSET)) ;; SIGNED SMALLINT
 (defconstant $SQL_C_STINYINT (+ $SQL_TINYINT $SQL_SIGNED_OFFSET)) ;; SIGNED TINYINT
