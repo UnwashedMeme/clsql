@@ -560,7 +560,8 @@ This makes the functions db-execute-command and db-query thread safe."
 (defun sql-to-lisp-type (sql-type)
   (ecase sql-type
     ((#.odbc::$SQL_CHAR #.odbc::$SQL_VARCHAR #.odbc::$SQL_LONGVARCHAR) :string)
-    ((#.odbc::$SQL_NUMERIC #.odbc::$SQL_DECIMAL #.odbc::$SQL_BIGINT) :string) ; ??
+    ((#.odbc::$SQL_NUMERIC #.odbc::$SQL_DECIMAL) :string) ; ??
+    (#.odbc::$SQL_BIGINT #.odbc::$ODBC-BIG-TYPE)
     (#.odbc::$SQL_INTEGER #.odbc::$ODBC-LONG-TYPE)
     (#.odbc::$SQL_SMALLINT :short)
     ((#.odbc::$SQL_FLOAT #.odbc::$SQL_DOUBLE) #.odbc::$ODBC-LONG-TYPE)
