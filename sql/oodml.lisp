@@ -158,9 +158,19 @@
       (mapc #'update-slot slotdeflist values)
       obj))
 
+(defmethod choose-database-for-instance ((obj standard-db-object) database)
+  "Determine which database connection to use for a standard-db-object.
+        Errs if none is available."
+  (or (find-if #'(lambda (db)
+		   (and db (is-database-open db)))
+               (list (view-database obj)
+                     database
+                     *default-database*))
+      (signal-no-database-error nil)))
+
 (defmethod update-record-from-slot ((obj standard-db-object) slot &key
-                                    (database *default-database*))
-  (let* ((database (or (view-database obj) database))
+				    database)
+  (let* ((database (choose-database-for-instance obj database))
          (vct (view-table (class-of obj)))
          (sd (slotdef-for-slot-with-class slot (class-of obj))))
     (check-slot-type sd (slot-value obj slot))
@@ -183,19 +193,22 @@
              (error "Unable to update record.")))))
   (values))
 
-(defmethod update-record-from-slots ((obj standard-db-object) slots &key
-                                     (database *default-database*))
-  (let* ((database (or (view-database obj) database))
-         (vct (view-table (class-of obj)))
-         (sds (slotdefs-for-slots-with-class slots (class-of obj)))
+(defmethod update-record-from-slots ((obj standard-db-object) slots
+				     &key database)
+  (let* ((database (choose-database-for-instance obj database))
+	 (vct (view-table (class-of obj)))
+	 (view-class (class-of obj))
          (avps (mapcar #'(lambda (s)
-                           (let ((val (slot-value
-                                       obj (slot-definition-name s))))
-                             (check-slot-type s val)
+                           (let* ((slot (etypecase s
+					  (symbol (slotdef-for-slot-with-class s view-class))
+					  (view-class-effective-slot-definition s)))
+				  (val (slot-value
+                                       obj (slot-definition-name slot))))
+                             (check-slot-type slot val)
                              (list (sql-expression
-                                    :attribute (view-class-slot-column s))
-                                   (db-value-from-slot s val database))))
-                       sds)))
+                                    :attribute (view-class-slot-column slot))
+                                   (db-value-from-slot slot val database))))
+                       slots)))
     (cond ((and avps (view-database obj))
            (update-records (sql-expression :table vct)
                            :av-pairs avps
@@ -208,75 +221,53 @@
                            :database database)
            (setf (slot-value obj 'view-database) database))
           (t
-           (error "Unable to update records"))))
+           (error "Unable to update record"))))
   (values))
 
 (defmethod update-records-from-instance ((obj standard-db-object) &key database)
-  (let ((database (or database (view-database obj) *default-database*)))
-    (labels ((slot-storedp (slot)
-               (and (member (view-class-slot-db-kind slot) '(:base :key))
-                    (slot-boundp obj (slot-definition-name slot))))
-             (slot-value-list (slot)
-               (let ((value (slot-value obj (slot-definition-name slot))))
-                 (check-slot-type slot value)
-                 (list (sql-expression :attribute (view-class-slot-column slot))
-                       (db-value-from-slot slot value database)))))
-      (let* ((view-class (class-of obj))
-             (view-class-table (view-table view-class))
-             (slots (remove-if-not #'slot-storedp
-                                   (ordered-class-slots view-class)))
-             (record-values (mapcar #'slot-value-list slots)))
-        (unless record-values
-          (error "No settable slots."))
-        (if (view-database obj)
-            (update-records (sql-expression :table view-class-table)
-                            :av-pairs record-values
-                            :where (key-qualifier-for-instance
-                                    obj :database database)
-                            :database database)
-            (progn
-              (insert-records :into (sql-expression :table view-class-table)
-                              :av-pairs record-values
-                              :database database)
-              (setf (slot-value obj 'view-database) database))))))
-  (values))
+  (labels ((slot-storedp (slot)
+	     (and (member (view-class-slot-db-kind slot) '(:base :key))
+		  (slot-boundp obj (slot-definition-name slot)))))
+    (let* ((view-class (class-of obj))
+	   (slots (remove-if-not #'slot-storedp
+				 (ordered-class-slots view-class))))
+      (update-record-from-slots obj slots :database database )))
+  )
 
-(defmethod delete-instance-records ((instance standard-db-object))
+(defmethod delete-instance-records ((instance standard-db-object) &key database)
   (let ((vt (sql-expression :table (view-table (class-of instance))))
-        (vd (view-database instance)))
-    (if vd
-        (let ((qualifier (key-qualifier-for-instance instance :database vd)))
-          (delete-records :from vt :where qualifier :database vd)
-          (setf (record-caches vd) nil)
-          (setf (slot-value instance 'view-database) nil)
-          (values))
-        (signal-no-database-error vd))))
+	(database (choose-database-for-instance instance database)))
+    (let ((qualifier (key-qualifier-for-instance instance :database database)))
+      (delete-records :from vt :where qualifier :database database)
+      (setf (record-caches database) nil)
+      (setf (slot-value instance 'view-database) nil)
+      (values))))
 
 (defmethod update-instance-from-records ((instance standard-db-object)
-                                         &key (database *default-database*))
+                                         &key database)
   (let* ((view-class (find-class (class-name (class-of instance))))
          (view-table (sql-expression :table (view-table view-class)))
-         (vd (or (view-database instance) database))
-         (view-qual (key-qualifier-for-instance instance :database vd))
+         (database (choose-database-for-instance instance database))
+         (view-qual (key-qualifier-for-instance instance :database database))
          (sels (generate-selection-list view-class))
          (res (apply #'select (append (mapcar #'cdr sels)
                                       (list :from  view-table
                                             :where view-qual
-                                            :result-types nil
-                                            :database vd)))))
+					    :result-types nil
+					    :database database)))))
     (when res
       (get-slot-values-from-view instance (mapcar #'car sels) (car res)))))
 
 (defmethod update-slot-from-record ((instance standard-db-object)
-                                    slot &key (database *default-database*))
+                                    slot &key database)
   (let* ((view-class (find-class (class-name (class-of instance))))
          (view-table (sql-expression :table (view-table view-class)))
-         (vd (or (view-database instance) database))
-         (view-qual (key-qualifier-for-instance instance :database vd))
+         (database (choose-database-for-instance instance database))
+         (view-qual (key-qualifier-for-instance instance :database database))
          (slot-def (slotdef-for-slot-with-class slot view-class))
          (att-ref (generate-attribute-reference view-class slot-def))
          (res (select att-ref :from  view-table :where view-qual
-                      :result-types nil)))
+		      :result-types nil)))
     (when res
       (get-slot-values-from-view instance (list slot-def) (car res)))))
 
