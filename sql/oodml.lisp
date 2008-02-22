@@ -168,30 +168,9 @@
                      *default-database*))
       (signal-no-database-error nil)))
 
-(defmethod update-record-from-slot ((obj standard-db-object) slot &key
-				    database)
-  (let* ((database (choose-database-for-instance obj database))
-         (vct (view-table (class-of obj)))
-         (sd (slotdef-for-slot-with-class slot (class-of obj))))
-    (check-slot-type sd (slot-value obj slot))
-    (let* ((att (view-class-slot-column sd))
-           (val (db-value-from-slot sd (slot-value obj slot) database)))
-      (cond ((and vct sd (view-database obj))
-             (update-records (sql-expression :table vct)
-                             :attributes (list (sql-expression :attribute att))
-                             :values (list val)
-                             :where (key-qualifier-for-instance
-                                     obj :database database)
-                             :database database))
-            ((and vct sd (not (view-database obj)))
-             (insert-records :into (sql-expression :table vct)
-                             :attributes (list (sql-expression :attribute att))
-                             :values (list val)
-                             :database database)
-             (setf (slot-value obj 'view-database) database))
-            (t
-             (error "Unable to update record.")))))
-  (values))
+(defmethod update-record-from-slot ((obj standard-db-object) slot
+				    &key database)
+  (update-record-from-slots obj (list slot) :database database))
 
 (defmethod update-record-from-slots ((obj standard-db-object) slots
 				     &key database)
@@ -221,7 +200,7 @@
                            :database database)
            (setf (slot-value obj 'view-database) database))
           (t
-           (error "Unable to update record"))))
+           (error "Unable to update record."))))
   (values))
 
 (defmethod update-records-from-instance ((obj standard-db-object) &key database)
