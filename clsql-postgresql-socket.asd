@@ -29,7 +29,7 @@
   :description "Common Lisp SQL PostgreSQL Socket Driver"
   :long-description "cl-sql-postgresql-socket package provides a database driver to the PostgreSQL database via a socket interface."
 
-  :depends-on (clsql uffi md5 #+sbcl sb-bsd-sockets)
+  :depends-on (clsql cffi-uffi-compat md5 #+sbcl sb-bsd-sockets)
   :components
   ((:module :db-postgresql-socket
 	    :components

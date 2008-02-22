@@ -27,7 +27,7 @@
 ;; need to load uffi for below perform :after method
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (unless (find-package 'uffi)
-    (asdf:operate 'asdf:load-op 'uffi)))
+    (asdf:operate 'asdf:load-op 'cffi-uffi-compat)))
 
 (defsystem clsql
     :name "CLSQL"
