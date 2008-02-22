@@ -454,22 +454,19 @@ This makes the functions db-execute-command and db-query thread safe."
     (setf computed-result-types (make-array column-count))
     (dotimes (i column-count)
       (setf (aref computed-result-types i)
-        (cond
-         ((consp result-types)
-          (nth i result-types))
-         ((eq result-types :auto)
-          (if (eq (aref column-sql-types i) odbc::$SQL_BIGINT)
-              :number
-            (case (aref column-c-types i)
-              (#.odbc::$SQL_C_SLONG :int)
-              (#.odbc::$SQL_C_DOUBLE :double)
-              (#.odbc::$SQL_C_FLOAT :float)
-              (#.odbc::$SQL_C_SSHORT :short)
-              (#.odbc::$SQL_C_STINYINT :short)
-              (#.odbc::$SQL_BIGINT :short)
-              (t t))))
-          (t
-           t)))))
+	    (cond
+	      ((consp result-types)
+	       (nth i result-types))
+	      ((eq result-types :auto)
+	       (case (aref column-c-types i)
+		 (#.odbc::$SQL_C_SLONG :int)
+		 (#.odbc::$SQL_C_DOUBLE :double)
+		 (#.odbc::$SQL_C_FLOAT :float)
+		 (#.odbc::$SQL_C_SSHORT :short)
+		 (#.odbc::$SQL_C_STINYINT :short)
+		 (#.odbc::$SQL_C_SBIGINT #.odbc::$ODBC-BIG-TYPE)
+		 (t t)))
+	      (t t)))))
   query)
 
 (defun db-close-query (query &key drop-p)
@@ -564,7 +561,8 @@ This makes the functions db-execute-command and db-query thread safe."
 (defun sql-to-lisp-type (sql-type)
   (ecase sql-type
     ((#.odbc::$SQL_CHAR #.odbc::$SQL_VARCHAR #.odbc::$SQL_LONGVARCHAR) :string)
-    ((#.odbc::$SQL_NUMERIC #.odbc::$SQL_DECIMAL #.odbc::$SQL_BIGINT) :string) ; ??
+    ((#.odbc::$SQL_NUMERIC #.odbc::$SQL_DECIMAL ) :string) ; ??
+    (#.odbc::$SQL_BIGINT #.odbc::$ODBC-BIG-TYPE)
     (#.odbc::$SQL_INTEGER #.odbc::$ODBC-LONG-TYPE)
     (#.odbc::$SQL_SMALLINT :short)
     ((#.odbc::$SQL_FLOAT #.odbc::$SQL_DOUBLE) #.odbc::$ODBC-LONG-TYPE)
