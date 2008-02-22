@@ -95,9 +95,9 @@
     (cond ((and value (null slot-reader))
            (setf (slot-value instance slot-name)
                  (read-sql-value value (delistify slot-type)
-                                 (view-database instance)
+				 (choose-database-for-instance instance)
                                  (database-underlying-type
-                                  (view-database instance)))))
+                                  (choose-database-for-instance instance)))))
           ((null value)
            (update-slot-with-null instance slot-name slotdef))
           ((typep slot-reader 'string)
@@ -158,7 +158,7 @@
       (mapc #'update-slot slotdeflist values)
       obj))
 
-(defmethod choose-database-for-instance ((obj standard-db-object) database)
+(defmethod choose-database-for-instance ((obj standard-db-object) &optional database)
   "Determine which database connection to use for a standard-db-object.
         Errs if none is available."
   (or (find-if #'(lambda (db)
@@ -625,10 +625,10 @@
                                 :table jc-view-table))
                           :where jq
                           :result-types :auto
-                          :database (view-database object))))
+                          :database (choose-database-for-instance object))))
            (mapcar #'(lambda (i)
                        (let* ((instance (car i))
-                              (jcc (make-instance jc :view-database (view-database instance))))
+                              (jcc (make-instance jc :view-database (choose-database-for-instance object))))
                          (setf (slot-value jcc (gethash :foreign-key dbi))
                                key)
                          (setf (slot-value jcc (gethash :home-key tdbi))
@@ -639,8 +639,8 @@
             ;; just fill in minimal slots
             (mapcar
              #'(lambda (k)
-                 (let ((instance (make-instance tsc :view-database (view-database object)))
-                       (jcc (make-instance jc :view-database (view-database object)))
+                 (let ((instance (make-instance tsc :view-database (choose-database-for-instance object)))
+                       (jcc (make-instance jc :view-database (choose-database-for-instance object)))
                        (fk (car k)))
                    (setf (slot-value instance (gethash :home-key tdbi)) fk)
                    (setf (slot-value jcc (gethash :foreign-key dbi))
@@ -651,7 +651,7 @@
              (select (sql-expression :attribute (gethash :foreign-key tdbi) :table jc-view-table)
                      :from (sql-expression :table jc-view-table)
                      :where jq
-                     :database (view-database object))))))))
+                     :database (choose-database-for-instance object))))))))
 
 
 ;;; Remote Joins
@@ -749,7 +749,7 @@ maximum of MAX-LEN instances updated in each query."
     (let ((jq (join-qualifier class object slot-def)))
       (when jq
         (select jc :where jq :flatp t :result-types nil
-                :database (view-database object))))))
+                :database (choose-database-for-instance object))))))
 
 (defun fault-join-slot (class object slot-def)
   (let* ((dbi (view-class-slot-db-info slot-def))

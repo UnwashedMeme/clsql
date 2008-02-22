@@ -21,7 +21,7 @@
 
 ;; FDML
 
-(defgeneric choose-database-for-instance (object database)
+(defgeneric choose-database-for-instance (object &optional database)
   (:documentation "Used by the oodml functions to select which
  database object to use. Chooses the database associated with the
  object primarily, falls back to the database provided as an argument
