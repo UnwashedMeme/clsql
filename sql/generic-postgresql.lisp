@@ -21,6 +21,13 @@
 
 
 ;; Object functions
+(defmethod database-output-sql-as-type ((type (eql 'float)) val database (db-type (eql :postgresql)))
+  (declare (ignore database db-type))
+  val)
+
+(defmethod database-output-sql-as-type ((type (eql 'float)) val database (db-type (eql :postgresql-socket)))
+  (declare (ignore database db-type))
+  val)
 
 (defmethod database-get-type-specifier (type args database
                                         (db-type (eql :postgresql)))
