@@ -213,4 +213,42 @@
       (clsql:time= add-time roll-time))
   t)
 
+
+
+
+(def-view-class datetest ()
+  ((testtime :COLUMN "testtime" :TYPE
+	     clsql-sys:wall-time :DB-KIND :BASE
+	     :DB-CONSTRAINTS COMMON-LISP:NIL
+	     :ACCESSOR testtime :INITARG
+	     :testtime :INITFORM COMMON-LISP:NIL
+	     :DB-TYPE "timestamptz")))
+
+
+
+(deftest :time-test-retrieving/saving/retrieving
+    (when (or (eq :postgresql *test-database-underlying-type*)
+	      (eq :postgresql-socket *test-database-underlying-type*))
+      #.(clsql-sys:locally-enable-sql-reader-syntax)
+      (unless (clsql-sys:table-exists-p "datetest")
+	(clsql-sys:create-view-from-class 'datetest))
+      (clsql-sys:delete-records :from 'datetest)
+      (let ((time (parse-timestring "2008-09-09T14:37:29.622278-04:00")))
+	(clsql-sys:update-records-from-instance
+	 (make-instance 'datetest :testtime time))
+	(let ((o (first (clsql:select
+			    'datetest
+			  :limit 1 :flatp T
+			  :where [= [testtime] time] ))))
+	  (assert o (o) "o shouldnt be null here (we should have just inserted)")
+	  (update-records-from-instance o)
+	  (update-instance-from-records o)
+	  (assert (time= (testtime o) time) (time o) "Time of o: ~a should be time:~a" (testtime o) time)
+	  #.(clsql-sys:locally-disable-sql-reader-syntax)
+	  )
+	)
+      nil
+      )
+  nil)
+
 ))

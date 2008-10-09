@@ -565,7 +565,8 @@
   (let ((test-forms '())
         (skip-tests '()))
     (dolist (test-form (append *rt-internal* *rt-connection* *rt-basic* *rt-fddl* *rt-fdml*
-                               *rt-ooddl* *rt-oodml* *rt-syntax*))
+                               *rt-ooddl* *rt-oodml* *rt-syntax* *rt-time*
+			       ))
       (let ((test (second test-form)))
         (cond
           ((and (null (clsql-sys:db-type-has-views? db-underlying-type))
