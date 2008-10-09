@@ -852,6 +852,9 @@ with the given options"
            (if stream
                (write-string string stream)
              string)))
+	(:iso8601 
+         (format stream "~4,'0D-~2,'0D-~2,'0DT~2,'0D:~2,'0D:~2,'0D.~DZ"
+                 year month day hour minute second usec))
         (t
          (format stream "~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D.~6,'0D"
                  year date-separator month date-separator day
