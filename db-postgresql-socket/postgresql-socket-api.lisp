@@ -113,7 +113,7 @@ socket interface"
         do (write-byte code socket)
         finally (write-byte 0 socket))
   #+sb-unicode
-  (write-sequence (sb-ext:string-to-octets value :null-terminate t) socket)
+  (write-sequence (sb-ext:string-to-octets value :external-format :utf8 :null-terminate t) socket)
   nil)
 
 (defun send-socket-value-limstring (socket value limit)
