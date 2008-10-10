@@ -226,7 +226,7 @@ socket interface"
     (declare (type (simple-array (unsigned-byte 8) (*)) bytes))
     (read-sequence bytes stream)
     (if allow-wide
-        (sb-ext:octets-to-string bytes)
+        (sb-ext:octets-to-string bytes :external-format :utf8)
         (map 'string #'code-char bytes))))
 
 ;;; Support for encrypted password transmission
