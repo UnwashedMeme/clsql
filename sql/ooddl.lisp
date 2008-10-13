@@ -222,3 +222,51 @@ strings."
 
 (defun keyslots-for-class (class)
   (slot-value class 'key-slots))
+
+
+(defclass dirty-tracking-db-class (standard-db-class)
+  ())
+
+(defclass dirty-tracking-db-object (standard-db-object)
+  ((dirty-slots :initform nil :accessor dirty-slots :db-kind :virtual))
+  (:metaclass dirty-tracking-db-class))
+
+;(defmethod initialize-instance :around ((dtdbo dirty-tracked-db-object)))
+
+(defun val-different-p (db-type old new)
+  (funcall (case db-type
+	     ((string varchar) #'string=)
+	     (T #'eql)
+	     )
+	   old new))
+
+(defmethod (setf slot-value-using-class) (new-value (class dirty-tracking-db-class)
+                                          instance slot-def)
+  (let* ((slot-object (%svuc-slot-object slot-def class))
+         (slot-kind (view-class-slot-db-kind slot-object))
+	 (dbtype (specified-type slot-object)))
+
+    '(break "diff:~a   init:~a    deseri:~a" (and (member slot-kind '(:base :key))
+	       (and (not *db-initializing*)
+	       (member slot-kind '(:base :key))
+	       (or (not (slot-boundp-using-class class instance slot-def))
+		   (val-different-p (typecase dbtype
+				      (cons (car dbtype))
+				      (t dbtype))
+				    (slot-value-using-class class instance slot-def)
+				    new-value))))
+	   *db-initializing* *db-deserializing*)
+    (when (and (not *db-initializing*)
+	       (member slot-kind '(:base :key))
+	       (or (not (slot-boundp-using-class class instance slot-def))
+		   (val-different-p (typecase dbtype
+				      (cons (car dbtype))
+				      (t dbtype))
+				    (slot-value-using-class class instance slot-def)
+				    new-value)))
+      (unless (slot-boundp instance 'dirty-slots) (setf (dirty-slots instance) nil))
+      (push slot-def (dirty-slots instance)))
+    
+    (prog1
+      (call-next-method))))
+
