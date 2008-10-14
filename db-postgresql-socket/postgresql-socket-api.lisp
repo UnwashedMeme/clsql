@@ -19,6 +19,8 @@
 
 (in-package #:postgresql-socket)
 
+(defparameter +postgres-external-format+ :utf8)
+
 (uffi:def-enum pgsql-ftype
     ((:bytea 17)
      (:int2 21)
@@ -113,7 +115,10 @@ socket interface"
         do (write-byte code socket)
         finally (write-byte 0 socket))
   #+sb-unicode
-  (write-sequence (sb-ext:string-to-octets value :external-format :utf8 :null-terminate t) socket)
+  (write-sequence (sb-ext:string-to-octets value
+					   :external-format +postgres-external-format+
+					   :null-terminate t)
+		  socket)
   nil)
 
 (defun send-socket-value-limstring (socket value limit)
@@ -167,7 +172,8 @@ socket interface"
     (loop for code = (read-byte socket)
           until (zerop code)
           do (vector-push-extend code bytes))
-    (sb-ext:octets-to-string bytes)))
+    (sb-ext:octets-to-string bytes
+			     :external-format +postgres-external-format+)))
 
 
 (defmacro define-message-sender (name (&rest args) &rest clauses)
@@ -226,7 +232,7 @@ socket interface"
     (declare (type (simple-array (unsigned-byte 8) (*)) bytes))
     (read-sequence bytes stream)
     (if allow-wide
-        (sb-ext:octets-to-string bytes :external-format :utf8)
+        (sb-ext:octets-to-string bytes :external-format +postgres-external-format+)
         (map 'string #'code-char bytes))))
 
 ;;; Support for encrypted password transmission
