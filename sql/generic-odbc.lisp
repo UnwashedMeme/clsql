@@ -225,18 +225,18 @@
 
 (defmethod database-list-views ((database generic-odbc-database)
                                  &key (owner nil))
-  (declare (ignore owner))
   (multiple-value-bind (rows col-names)
       (funcall (list-all-database-tables-fn database) :db (odbc-conn database))
     (declare (ignore col-names))
     ;; TABLE_SCHEM is hard-coded in second column by ODBC Driver Manager
     ;; TABLE_NAME in third column, TABLE_TYPE in fourth column
-    (loop for row in rows
-          when (and (not (string-equal "information_schema" (nth 1 row)))
-                    (string-equal "VIEW" (nth 3 row))
+    (loop for (category view-owner name type . rest) in rows
+          when (and (or (null owner) (string-equal owner view-owner) )
+		    (not (string-equal "information_schema" view-owner))
+                    (string-equal "VIEW" type)
                     (not (and (eq :mssql (database-underlying-type database))
-                              (member (nth 2 row) '("sysconstraints" "syssegments") :test #'string-equal))))
-          collect (nth 2 row))))
+                              (member name '("sysconstraints" "syssegments") :test #'string-equal))))
+          collect name)))
 
 
 (defmethod database-list-attributes ((table string) (database generic-odbc-database)
