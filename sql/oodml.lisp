@@ -318,16 +318,16 @@
 
     pk))
 
-(defmethod delete-instance-records ((instance standard-db-object))
-  (let ((vt (sql-expression :table (view-table (class-of instance))))
-        (vd (view-database instance)))
-    (if vd
-        (let ((qualifier (key-qualifier-for-instance instance :database vd)))
-          (delete-records :from vt :where qualifier :database vd)
-          (setf (record-caches vd) nil)
+(defmethod delete-instance-records ((instance standard-db-object) &key database)
+  (let ((database (choose-database-for-instance instance database))
+        (vt (sql-expression :table (view-table (class-of instance)))))
+    (if database
+        (let ((qualifier (key-qualifier-for-instance instance :database database)))
+          (delete-records :from vt :where qualifier :database database)
+          (setf (record-caches database) nil)
           (setf (slot-value instance 'view-database) nil)
           (values))
-        (signal-no-database-error vd))))
+        (signal-no-database-error database))))
 
 (defmethod update-instance-from-records ((instance standard-db-object)
                                          &key (database *default-database*)
@@ -1261,15 +1261,19 @@ as elements of a list."
            (when (and order-by (= 1 (length target-args)))
              (let ((table-name (view-table (find-class (car target-args))))
                    (order-by-list (copy-seq (listify order-by))))
-
-               (loop for i from 0 below (length order-by-list)
-                  do (etypecase (nth i order-by-list)
-                       (sql-ident-attribute
-                        (unless (slot-value (nth i order-by-list) 'qualifier)
-                          (setf (slot-value (nth i order-by-list) 'qualifier) table-name)))
-                       (cons
-                        (unless (slot-value (car (nth i order-by-list)) 'qualifier)
-                          (setf (slot-value (car (nth i order-by-list)) 'qualifier) table-name)))))
+               (labels ((set-table-if-needed (val)
+                          (typecase val
+                            (sql-ident-attribute
+                             (handler-case
+                                 (unless (slot-value val 'qualifier)
+                                   (setf (slot-value val 'qualifier) table-name))
+                               (simple-error ()
+                                 ;; TODO: Check for a specific error we expect
+                                 )))
+                            (cons (set-table-if-needed (car val))))))
+                 (loop for i from 0 below (length order-by-list)
+                       for id = (nth i order-by-list)
+                       do (set-table-if-needed id)))
                (setf (getf qualifier-args :order-by) order-by-list)))
 
            (cond
