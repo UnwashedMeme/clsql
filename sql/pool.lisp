@@ -36,25 +36,25 @@
         (when (plusp (length (free-connections pool)))
           (let ((pconn (vector-pop (free-connections pool))))
             ;; test if connection still valid.
-            ;; Currently, on supported on MySQL
-            (cond
-              ((eq :mysql (database-type pconn))
-               (handler-case
-                   (database-query "SHOW ERRORS LIMIT 1" pconn nil nil)
-                 (error (e)
-                   ;; we could check for error type 2006 for "SERVER GONE AWAY",
-                   ;; but, it's safer just to disconnect the pooled conn for any error
-                   (warn "Database connection ~S had an error when attempted to be acquired from the pool:
+	    ;; (e.g. db reboot -> invalid connection )
+	    (handler-case
+		(case (database-type pconn)
+		  (:mysql 
+		     (database-query "SHOW ERRORS LIMIT 1" pconn nil nil))
+		  (T
+		     (database-query "SELECT 1;"  pconn '(integer) nil)))
+	      (sql-database-error (e)
+		;; we could check for a specific error,
+		;; but, it's safer just to disconnect the pooled conn for any error ?
+		(warn "Database connection ~S had an error when attempted to be acquired from the pool:
   ~S
 Disconnecting.~%"
-                         pconn e)
-                   (ignore-errors (database-disconnect pconn))
-                   nil)
-                 (:no-error (res fields)
-                   (declare (ignore res fields))
-                   pconn)))
-              (t
-               pconn)))))
+		      pconn e)
+		(ignore-errors (database-disconnect pconn))
+		nil)
+	      (:no-error (&rest args)
+		(declare (ignore args))
+		pconn)))))
       (let ((conn (connect (connection-spec pool)
                            :database-type (pool-database-type pool)
                            :if-exists :new
