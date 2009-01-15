@@ -235,6 +235,7 @@
 					    :result-types nil
 					    :database database)))))
     (when res
+      (setf (slot-value instance 'view-database) database)
       (get-slot-values-from-view instance (mapcar #'car sels) (car res)))))
 
 (defmethod update-slot-from-record ((instance standard-db-object)
