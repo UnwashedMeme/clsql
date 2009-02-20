@@ -32,15 +32,25 @@
          :initform (make-process-lock "Connection pool"))))
 
 (defun acquire-from-conn-pool (pool)
+  "Try to find a working database connection in the pool or create a new
+one if needed. This performs 1 query against the DB to ensure it's still
+valid. When possible (postgres, mssql) that query will be a reset
+command to put the connection back into its default state."
   (or (with-process-lock ((conn-pool-lock pool) "Acquire from pool")
         (when (plusp (length (free-connections pool)))
           (let ((pconn (vector-pop (free-connections pool))))
             ;; test if connection still valid.
 	    ;; (e.g. db reboot -> invalid connection )
 	    (handler-case
-		(case (database-type pconn)
-		  (:mysql 
+		(case (database-underlying-type pconn)
+		  (:postgresql
+		     (database-execute-command "RESET ALL" pconn))
+		  (:mysql
 		     (database-query "SHOW ERRORS LIMIT 1" pconn nil nil))
+		  (:mssql
+		     ;; rpc escape sequence since this can't be called as a normal sp.
+		     ;;http://msdn.microsoft.com/en-us/library/aa198358%28SQL.80%29.aspx
+		     (database-execute-command "{rpc sp_reset_connection}" pconn))
 		  (T
 		     (database-query "SELECT 1;"  pconn '(integer) nil)))
 	      (sql-database-error (e)
