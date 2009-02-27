@@ -104,7 +104,7 @@
                      :accessor data-ptrs)
    (column-out-len-ptrs :initform (make-array 0 :adjustable t :fill-pointer t)
                         :accessor column-out-len-ptrs)
-   (column-precisions :initform (make-array 0 :element-type 'fixnum :adjustable t :fill-pointer t)
+   (column-precisions :initform (make-array 0 :element-type 'integer :adjustable t :fill-pointer t)
                       :accessor column-precisions)
    (column-scales :initform (make-array 0 :element-type 'fixnum :adjustable t :fill-pointer t)
                   :accessor column-scales)
