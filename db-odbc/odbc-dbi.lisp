@@ -309,30 +309,38 @@ the query against." ))
     (with-slots (column-count column-data-ptrs column-c-types column-sql-types
                  column-out-len-ptrs column-precisions hstmt computed-result-types)
         query
-      (let* ((rows-fetched 0)
-             (rows
-              (loop for i from 0
-                  until (or (and count (= i count))
-                            (= (%sql-fetch hstmt) odbc::$SQL_NO_DATA_FOUND))
-                  collect
-                    (loop for result-type across computed-result-types
-                        for data-ptr across column-data-ptrs
-                        for c-type across column-c-types
-                        for sql-type across column-sql-types
-                        for out-len-ptr across column-out-len-ptrs
-                        for precision across column-precisions
-                        for j from 0    ; column count is zero based in lisp
-                        collect
-                          (progn
-                            (incf rows-fetched)
-                            (cond ((< 0 precision (query-width query))
-                                   (read-data data-ptr c-type sql-type out-len-ptr result-type))
-                                  ((zerop (get-cast-long out-len-ptr))
-                              nil)
-                                  (t
-                                   (read-data-in-chunks hstmt j data-ptr c-type sql-type
-                                                        out-len-ptr result-type))))))))
-        (values rows query rows-fetched)))))
+      (labels
+	  ((create-column-fetcher (result-type data-ptr c-type sql-type out-len-ptr precision column-nr)
+	     (lambda ()
+	       (cond ((< 0 precision (query-width query))
+		      (read-data data-ptr c-type sql-type out-len-ptr result-type))
+		     ((zerop (get-cast-long out-len-ptr))
+		      nil)
+		     (t
+		      (read-data-in-chunks hstmt column-nr data-ptr c-type sql-type
+					   out-len-ptr result-type))))))
+	(let ((fetchers (make-array column-count :fill-pointer 0 :element-type 'function)))
+	  ;;; Map across the columns, creating a set of fetch functions
+	  (loop for result-type across computed-result-types
+		for data-ptr across column-data-ptrs
+		for c-type across column-c-types
+		for sql-type across column-sql-types
+		for out-len-ptr across column-out-len-ptrs
+		for precision across column-precisions
+		for column-nr from 0 ; column count is zero based in lisp
+		do
+	     (vector-push (create-column-fetcher result-type data-ptr c-type sql-type
+				 out-len-ptr precision column-nr)
+		    fetchers))
+	  ;; keep fetching rows until we meet the count parameter,
+	  ;; or the %sql-fetch says we're done.
+	  (loop for i from 0
+		until (or (and count (= i count))
+			  (= (%sql-fetch hstmt) odbc::$SQL_NO_DATA_FOUND))
+		;;collect the results of the fetch functions to make a row.
+		collect (map 'list #'funcall fetchers) into rows
+		finally (return (values rows query i))
+		))))))
 
 (defun db-query (database query-expression &key result-types width)
   (let ((free-query (get-free-query database)))
