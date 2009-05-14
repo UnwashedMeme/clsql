@@ -225,11 +225,14 @@
                                    (db-value-from-slot s val database))))
                        sds)))
     (cond ((and avps (view-database obj))
-           (update-records (sql-expression :table vct)
-                           :av-pairs avps
-                           :where (key-qualifier-for-instance
-                                   obj :database database)
-                           :database database))
+           (let ((where (key-qualifier-for-instance
+                         obj :database database)))
+             (unless where
+               (error "update-record-from-slots: could not generate a where clause for ~a" obj))
+             (update-records (sql-expression :table vct)
+                             :av-pairs avps
+                             :where where
+                             :database database)))
           ((and avps (not (view-database obj)))
            (insert-records :into (sql-expression :table vct)
                            :av-pairs avps
