@@ -70,35 +70,17 @@
            nil)))))
 
 (defun canonicalize-type-list (types auto-list)
-  "Ensure a field type list meets expectations.
-Duplicated from clsql-uffi package so that this interface
-doesn't depend on UFFI."
-  (let ((length-types (length types))
-        (new-types '()))
+  "Ensure a field type list meets expectations.  Essentially if we get a
+   generic term for a type that our auto typer pulls a better type for,
+   use it instead"
+  (let ((length-types (length types)))
     (loop for i from 0 below (length auto-list)
-          do
-          (if (>= i length-types)
-              (push t new-types) ;; types is shorted than num-fields
-              (push
-               (case (nth i types)
-                 (:int
-                  (case (nth i auto-list)
-                    (:int32
-                     :int32)
-                    (:int64
-                     :int64)
-                    (t
-                     t)))
-                 (:double
-                  (case (nth i auto-list)
-                    (:double
-                     :double)
-                    (t
-                     t)))
-                 (t
-                  t))
-               new-types)))
-    (nreverse new-types)))
+          for auto = (nth i auto-list)
+          collect
+       (if (or (>= i length-types)
+               (member (nth i types) (list T :int :double)))
+           auto
+           (nth i types)))))
 
 
 (defun convert-to-clsql-warning (database condition)
