@@ -586,12 +586,16 @@ uninclusive, and the args from that keyword to the end."
     (when *in-subselect*
       (write-string "(" *sql-stream*))
     (write-string "SELECT " *sql-stream*)
+    (when (and limit (eql :mssql (database-underlying-type database)))
+      (write-string " TOP " *sql-stream*)
+      (output-sql limit database)
+      (write-string " " *sql-stream*))
     (when all
-      (write-string "ALL " *sql-stream*))
+      (write-string " ALL " *sql-stream*))
     (when (and distinct (not all))
-      (write-string "DISTINCT " *sql-stream*)
+      (write-string " DISTINCT " *sql-stream*)
       (unless (eql t distinct)
-        (write-string "ON " *sql-stream*)
+        (write-string " ON " *sql-stream*)
         (output-sql distinct database)
         (write-char #\Space *sql-stream*)))
     (let ((*in-subselect* t))
@@ -657,7 +661,7 @@ uninclusive, and the args from that keyword to the end."
               (when (cdr order)
                 (write-char #\, *sql-stream*))))
           (output-sql order-by database)))
-    (when limit
+    (when (and limit (not (eql :mssql (database-underlying-type database))))
       (write-string " LIMIT " *sql-stream*)
       (output-sql limit database))
     (when offset

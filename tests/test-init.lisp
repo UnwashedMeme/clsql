@@ -287,7 +287,7 @@
                 (clsql-sys:in test :fdml/select/9))
            (push (cons test "mssql uses integer math for AVG.") skip-tests))
           ((and (not (member *test-database-underlying-type*
-                             '(:postgresql :mysql :sqlite3)))
+                             '(:postgresql :mysql :sqlite3 )))
                 (clsql-sys:in test :fdml/select/37 :fdml/select/38))
            (push (cons test "LIMIT keyword not supported in SELECT.") skip-tests))
 	  ((and (not (clsql-sys:db-type-has-auto-increment? db-underlying-type))
