@@ -475,8 +475,7 @@
 
 (defmethod database-list (connection-spec (type (eql :mysql)))
   (destructuring-bind (host name user password &optional port) connection-spec
-    (declare (ignore name))
-    (let ((database (database-connect (list host "mysql" user password port) type)))
+    (let ((database (database-connect (list host (or name "mysql") user password port) type)))
       (unwind-protect
            (progn
              (setf (slot-value database 'clsql-sys::state) :open)
