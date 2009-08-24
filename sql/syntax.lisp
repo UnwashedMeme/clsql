@@ -155,7 +155,7 @@ keyword arguments is specified."
     (string
      (make-instance 'sql :string string))
     (attribute
-     (make-instance 'sql-ident-attribute  :name attribute
+     (make-instance 'sql-ident-attribute :name attribute
                     :qualifier (or table alias)
                     :type type))
     ((and table (not attribute))

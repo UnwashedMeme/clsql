@@ -21,15 +21,10 @@
 ;;; Sequence functions
 
 (defun %sequence-name-to-table (sequence-name database)
-  (concatenate 'string
-               (convert-to-db-default-case "_CLSQL_SEQ_" database)
-               (sql-escape sequence-name)))
-
-(defun %table-name-to-sequence-name (table-name database)
-  (and (>= (length table-name) 11)
-       (string-equal (subseq table-name 0 11)
-                     (convert-to-db-default-case "_CLSQL_SEQ_" database))
-       (subseq table-name 11)))
+  (escaped
+   (combine-database-identifiers
+    (list sequence-name 'CLSQL_SEQ)
+    database)))
 
 (defmethod database-create-sequence (sequence-name database)
   (let ((table-name (%sequence-name-to-table sequence-name database)))
@@ -47,11 +42,17 @@
    (concatenate 'string "DROP TABLE " (%sequence-name-to-table sequence-name database))
    database))
 
+(defun %table-name-to-sequence-name (table-name)
+  ;; if this was escaped it still should be,
+  ;; if it wasnt it still shouldnt-be
+  (check-type table-name string)
+  (replace-all table-name "_CLSQL_SEQ" ""))
+
 (defmethod database-list-sequences (database &key (owner nil))
   (declare (ignore owner))
   (mapcan #'(lambda (s)
-              (let ((sn (%table-name-to-sequence-name s database)))
-                (and sn (list sn))))
+              (and (search "_CLSQL_SEQ" s :test #'string-equal)
+                   (list (%table-name-to-sequence-name s))))
           (database-list-tables-and-sequences database)))
 
 (defmethod database-set-sequence-position (sequence-name position database)

@@ -134,3 +134,11 @@ connection is no longer usable."))
                      "While accessing database ~A~%  Warning: ~A~%  has occurred."
                      (sql-warning-database c)
                      (sql-warning-message c)))))
+
+(define-condition database-too-strange (sql-user-error)
+  ()
+  (:documentation "Used to signal cases where CLSQL is going to fail at
+    mapping your database correctly"))
+
+(defun signal-database-too-strange (message)
+  (error 'database-too-strange :message message))

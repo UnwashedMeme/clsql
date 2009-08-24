@@ -67,9 +67,7 @@ should we debug (T) or just print and quit.")
 
 (defun %dataset-init (name)
   "Run initialization code and fill database for given dataset."
-      (handler-bind
-	  ((error #'generic-error))
-	;;find items that looks like '(:setup ...),
+  	;;find items that looks like '(:setup ...),
 	;; dispatch the rest.
 	(let ((setup (rest (find :setup name :key #'first)))
 	      (sqldata (rest (find :sqldata name :key #'first)))
@@ -88,7 +86,7 @@ should we debug (T) or just print and quit.")
 	    ;;presumed to be view-class objects, force them to insert.
 	    (dolist (o objdata)
 	      (setf (slot-value o 'clsql-sys::view-database) nil)
-	      (clsql-sys:update-records-from-instance o))))))
+	      (clsql-sys:update-records-from-instance o)))))
 
 (defun %dataset-cleanup (name)
   "Run cleanup code associated with the given dataset."

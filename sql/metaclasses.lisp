@@ -83,15 +83,6 @@
         ((stringp arg)
          (sql-escape arg))))
 
-(defun column-name-from-arg (arg)
-  (cond ((symbolp arg)
-         arg)
-        ((typep arg 'sql-ident)
-         (slot-value arg 'name))
-        ((stringp arg)
-         (intern (symbol-name-default-case arg)))))
-
-
 (defun remove-keyword-arg (arglist akey)
   (let ((mylist arglist)
         (newlist ()))
@@ -445,12 +436,7 @@ implementations."
       list))
 
 (declaim (inline delistify-dsd))
-(defun delistify-dsd (list)
-  "Some MOPs, like openmcl 0.14.2, cons attribute values in a list."
-  (if (and (listp list) (null (cdr list)))
-      (car list)
-      list))
-
+;; there is an :after method below too
 (defmethod initialize-instance :around
     ((obj view-class-direct-slot-definition)
      &rest initargs &key db-constraints db-kind type &allow-other-keys)
@@ -465,6 +451,14 @@ implementations."
                     type db-constraints))
          initargs))
 
+(defun compute-column-name (arg)
+  (database-identifier arg nil))
+
+(defmethod initialize-instance :after
+    ((obj view-class-direct-slot-definition)
+     &key &allow-other-keys)
+  (setf (view-class-slot-column obj) (compute-column-name obj)))
+
 (defmethod compute-effective-slot-definition ((class standard-db-class)
                                               #+kmr-normal-cesd slot-name
                                               direct-slots)
@@ -476,15 +470,7 @@ implementations."
     (let ((esd (call-next-method)))
       (typecase dsd
         (view-class-slot-definition-mixin
-         ;; Use the specified :column argument if it is supplied, otherwise
-         ;; the column slot is filled in with the slot-name,  but transformed
-         ;; to be sql safe, - to _ and such.
-         (setf (slot-value esd 'column)
-           (column-name-from-arg
-            (if (slot-boundp dsd 'column)
-                (delistify-dsd (view-class-slot-column dsd))
-              (column-name-from-arg
-               (sql-escape (slot-definition-name dsd))))))
+         (setf (slot-value esd 'column) (compute-column-name dsd))
 
          (setf (slot-value esd 'db-type)
            (when (slot-boundp dsd 'db-type)
@@ -555,10 +541,8 @@ implementations."
              #+openmcl (setf (slot-value esd 'ccl::type-predicate)
                              type-predicate)))
 
-         (setf (slot-value esd 'column)
-           (column-name-from-arg
-            (sql-escape (slot-definition-name dsd))))
-
+         ;; has no column name if it is not a database column
+         (setf (slot-value esd 'column) nil)
          (setf (slot-value esd 'db-info) nil)
          (setf (slot-value esd 'db-kind) :virtual)
          (setf (specified-type esd) (slot-definition-type dsd)))
@@ -588,3 +572,22 @@ implementations."
   #+kmr-normal-esdc
   (setq cl:*features* (delete :kmr-normal-esdc cl:*features*))
   )
+
+(defmethod database-identifier ( (name standard-db-class)
+                                &optional database find-class-p)
+  "the majority of this function is in expressions.lisp
+   this is here to make loading be less painful (try-recompiles) in SBCL"
+  (database-identifier (view-table name) database))
+
+(defmethod database-identifier ((name view-class-slot-definition-mixin)
+                                &optional database find-class-p)
+  (database-identifier
+   (if (slot-boundp name 'column)
+       (delistify-dsd (view-class-slot-column name))
+       (slot-definition-name name))
+   database))
+
+(defun find-standard-db-class (name &aux cls)
+  (and (setf cls (ignore-errors (find-class name)))
+       (typep cls 'standard-db-class)
+       cls))
