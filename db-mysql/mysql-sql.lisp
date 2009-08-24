@@ -16,6 +16,10 @@
 (defpackage #:clsql-mysql
     (:use #:common-lisp #:clsql-sys #:mysql #:clsql-uffi)
     (:export #:mysql-database)
+    (:import-from :clsql-sys
+     :escaped :unescaped :combine-database-identifiers
+     :escaped-database-identifier :unescaped-database-identifier :database-identifier
+     :%sequence-name-to-table :%table-name-to-sequence-name)
     (:documentation "This is the CLSQL interface to MySQL."))
 
 (in-package #:clsql-mysql)
@@ -391,7 +395,8 @@
   (declare (ignore owner))
   (do ((results nil)
        (rows (database-query
-              (format nil "SHOW INDEX FROM ~A" table)
+              (format nil "SHOW INDEX FROM ~A" (escaped-database-identifier
+                                                table database))
               database nil nil)
              (cdr rows)))
       ((null rows) (nreverse results))
@@ -404,7 +409,8 @@
   (declare (ignore owner))
   (mapcar #'car
           (database-query
-           (format nil "SHOW COLUMNS FROM ~A" table)
+           (format nil "SHOW COLUMNS FROM ~A" (escaped-database-identifier
+                                                table database))
            database nil nil)))
 
 (defmethod database-attribute-type (attribute (table string)
@@ -413,7 +419,11 @@
   (declare (ignore owner))
   (let ((row (car (database-query
                    (format nil
-                           "SHOW COLUMNS FROM ~A LIKE '~A'" table attribute)
+                           "SHOW COLUMNS FROM ~A LIKE '~A'"
+                           (escaped-database-identifier
+                            table database)
+                           (unescaped-database-identifier
+                            attribute database))
                    database nil nil))))
     (let* ((raw-type (second row))
            (null (third row))
@@ -429,17 +439,9 @@
 
 ;;; Sequence functions
 
-(defun %sequence-name-to-table (sequence-name)
-  (concatenate 'string "_CLSQL_SEQ_" (sql-escape sequence-name)))
-
-(defun %table-name-to-sequence-name (table-name)
-  (and (>= (length table-name) 11)
-       (string-equal (subseq table-name 0 11) "_CLSQL_SEQ_")
-       (subseq table-name 11)))
-
 (defmethod database-create-sequence (sequence-name
                                      (database mysql-database))
-  (let ((table-name (%sequence-name-to-table sequence-name)))
+  (let ((table-name (%sequence-name-to-table sequence-name database)))
     (database-execute-command
      (concatenate 'string "CREATE TABLE " table-name
                   " (id int NOT NULL PRIMARY KEY AUTO_INCREMENT)")
@@ -452,7 +454,8 @@
 (defmethod database-drop-sequence (sequence-name
                                    (database mysql-database))
   (database-execute-command
-   (concatenate 'string "DROP TABLE " (%sequence-name-to-table sequence-name))
+   (concatenate 'string "DROP TABLE "
+                (%sequence-name-to-table sequence-name database))
    database))
 
 (defmethod database-list-sequences ((database mysql-database)
@@ -460,14 +463,14 @@
   (declare (ignore owner))
   (mapcan #'(lambda (s)
               (let ((sn (%table-name-to-sequence-name (car s))))
-                (and sn (list sn))))
+                (and sn (list (car s) sn))))
           (database-query "SHOW TABLES" database nil nil)))
 
 (defmethod database-set-sequence-position (sequence-name
                                            (position integer)
                                            (database mysql-database))
   (database-execute-command
-   (format nil "UPDATE ~A SET id=~A" (%sequence-name-to-table sequence-name)
+   (format nil "UPDATE ~A SET id=~A" (%sequence-name-to-table sequence-name database)
            position)
    database)
   (mysql:mysql-insert-id (clsql-mysql::database-mysql-ptr database)))
@@ -475,7 +478,7 @@
 (defmethod database-sequence-next (sequence-name (database mysql-database))
   (without-interrupts
    (database-execute-command
-    (concatenate 'string "UPDATE " (%sequence-name-to-table sequence-name)
+    (concatenate 'string "UPDATE " (%sequence-name-to-table sequence-name database)
                  " SET id=LAST_INSERT_ID(id+1)")
     database)
    (mysql:mysql-insert-id (clsql-mysql::database-mysql-ptr database))))
@@ -484,7 +487,7 @@
   (without-interrupts
     (caar (database-query
            (concatenate 'string "SELECT id from "
-                        (%sequence-name-to-table sequence-name))
+                        (%sequence-name-to-table sequence-name database))
            database :auto nil))))
 
 (defmethod database-last-auto-increment-id ((database mysql-database) table column)

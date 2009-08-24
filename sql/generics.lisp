@@ -144,11 +144,28 @@ DATABASE-NULL-VALUE on the type of the slot."))
   )
 (defgeneric read-sql-value  (val type database db-type)
   )
-(defgeneric database-make-autoincrement-sequence (class slotdef database)
-  )
+(defgeneric database-add-autoincrement-sequence (class database)
+  (:method (class database) nil)
+  (:documentation "If a database needs to add a sequence for its
+    autoincrement to work, this is where it should go.  Default is
+    that it doesnt so just return nil"))
+(defgeneric database-remove-autoincrement-sequence (class database)
+  (:method (class database) nil)
+  (:documentation "If a database needs to add a sequence for its
+    autoincrement to work, this is where it should go.  Default is
+    that it doesnt so just return nil"))
+(defgeneric auto-increment-sequence-name (class slotdef database)
+  (:documentation "The sequence name to create for this autoincremnt column on this class
+   if returns nil, there is no associated sequence "))
+
+(defmethod auto-increment-sequence-name :around (class slot database)
+  (when (auto-increment-column-p slot database)
+    (call-next-method)))
 
 (defgeneric database-last-auto-increment-id (database table column)
   )
+
+
 
 ;; Generation of SQL strings from lisp expressions
 

@@ -20,6 +20,169 @@
 (defvar *sql-stream* nil
   "stream which accumulates SQL output")
 
+(defclass %database-identifier ()
+  ((escaped :accessor escaped :initarg :escaped :initform nil)
+   (unescaped :accessor unescaped :initarg :unescaped :initform nil))
+  (:documentation
+   "A database identifier represents a string/symbol ready to be spliced
+    into a sql string.  It keeps references to both the escaped and
+    unescaped versions so that unescaped versions can be compared to the
+    results of list-tables/views/attributes etc.  It also allows you to be
+    sure that an identifier is escaped only once.
+
+    (escaped-database-identifiers *any-reasonable-object*) should be called to
+      produce a string that is safe to splice directly into sql strings.
+
+    (unescaped-database-identifier *any-reasonable-object*) is generally what
+      you pass to it with the exception that symbols have been
+      clsql-sys:sql-escape which converts to a string and changes - to _ (so
+      that unescaped can be compared to the results of eg: list-tables)
+   "))
+
+(defmethod escaped ((it null)) it)
+(defmethod unescaped ((it null)) it)
+
+(defun database-identifier-equal (i1 i2 &optional (database clsql-sys:*default-database*))
+  (setf i1 (database-identifier i1 database)
+        i2 (database-identifier i2 database))
+  (flet ((cast (i)
+             (if (symbolp (unescaped i))
+                 (sql-escape (unescaped i))
+                 (unescaped i))))
+    (or ;; check for an exact match
+     (equal (escaped-database-identifier i1)
+            (escaped-database-identifier i2))
+     ;; check for an inexact match if we had symbols in the mix
+     (string-equal (cast i1) (cast i2)))))
+
+(defun delistify-dsd (list)
+  "Some MOPs, like openmcl 0.14.2, cons attribute values in a list."
+  (if (and (listp list) (null (cdr list)))
+      (car list)
+      list))
+
+(defun special-char-p (s)
+  "Check if a string has any special characters"
+  (loop for char across s
+       thereis (find char '(#\space #\, #\. #\! #\@ #\# #\$ #\% #\' #\"
+                            #\^ #\& #\* #\| #\( #\) #\- #\+ #\< #\>
+                            #\{ #\}))))
+
+(defun %make-database-identifier (inp &optional database)
+  "We want to quote an identifier if it came to us as a string or if it has special characters
+   in it."
+  (labels ((%escape-identifier (inp &optional orig)
+             "Quote an identifier unless it is already quoted"
+             (cond
+               ;; already quoted
+               ((and (eql #\" (elt inp 0))
+                     (eql #\" (elt inp (- (length inp) 1))))
+                (make-instance '%database-identifier :unescaped (or orig inp) :escaped inp))
+               (T (make-instance
+                   '%database-identifier :unescaped (or orig inp) :escaped
+                   (concatenate
+                    'string "\"" (replace-all inp "\"" "\\\"") "\""))))))
+    (typecase inp
+      (string (%escape-identifier inp))
+      (%database-identifier inp)
+      (symbol
+       (let ((s (sql-escape inp)))
+         (if (and (not (eql '* inp)) (special-char-p s))
+             (%escape-identifier (convert-to-db-default-case s database) inp)
+             (make-instance '%database-identifier :escaped s :unescaped inp)))))))
+
+(defun database-identifier (name &optional database find-class-p
+                                 &aux cls)
+  "A function that takes whatever you give it, recurively coerces it,
+   and returns a database-identifier.
+
+   (escaped-database-identifiers *any-reasonable-object*) should be called to
+     produce a string that is safe to splice directly into sql strings.
+
+   This function should NOT throw errors when database is nil
+
+   find-class-p should be T if we want to search for classes
+        and check their use their view table.  Should be used
+        on symbols we are sure indicate tables
+  "
+  (flet ((flatten-id (id)
+           "if we have multiple pieces that we need to represent as
+            db-id lets do that by rendering out the id, then creating
+            a new db-id with that string as escaped"
+           (let ((s (sql-output id database)))
+             (make-instance '%database-identifier :escaped s :unescaped s))))
+  (etypecase name
+    (null nil)
+    (string (%make-database-identifier name database))
+    (symbol
+     ;; if this is being used as a table, we should check
+     ;; for a class with this name and use the identifier specified
+     ;; on it
+     (if (and find-class-p (setf cls (ignore-errors (find-class name)))
+              (typep cls 'standard-db-class))
+         (database-identifier cls)
+         (%make-database-identifier name database)))
+    (%database-identifier name)
+    (standard-db-class
+     (database-identifier (view-table name) database))
+    (view-class-slot-definition-mixin
+     (database-identifier
+      (if (slot-boundp name 'column)
+          (delistify-dsd (view-class-slot-column name))
+          (slot-definition-name name))
+      database))
+    ;; we know how to deref this without further escaping
+    (sql-ident-table
+     (with-slots ((inner-name name) alias) name
+       (if alias
+           (flatten-id name)
+           (database-identifier inner-name))))
+    ;; if this is a single name we can derefence it
+    (sql-ident-attribute
+     (with-slots (qualifier (inner-name name)) name
+       (if qualifier
+           (flatten-id name)
+           (database-identifier inner-name))))
+    (sql-ident
+     (with-slots ((inner-name name)) name
+       (database-identifier inner-name)))
+    ;; dont know how to handle this really :/
+    (%sql-expression (flatten-id name))
+    )))
+
+(defun combine-database-identifiers (ids &optional (database clsql-sys:*default-database*)
+                                     &aux res all-sym? pkg)
+  "Create a new database identifier by combining parts in a reasonable way
+  "
+  (setf ids (mapcar #'database-identifier ids)
+        all-sym? (every (lambda (i) (symbolp (unescaped i))) ids)
+        pkg (when all-sym? (symbol-package (unescaped (first ids)))))
+  (labels ((cast ( i )
+               (typecase i
+                 (null nil)
+                 (%database-identifier (cast (unescaped i)))
+                 (symbol
+                  (if all-sym?
+                      (sql-escape i)
+                      (convert-to-db-default-case (sql-escape i) database)))
+                 (string i)))
+           (comb (i1 i2)
+             (setf i1 (cast i1)
+                   i2 (cast i2))
+             (if (and i1 i2)
+                 (concatenate 'string (cast i1) "_" (cast i2))
+                 (or i1 i2))))
+    (setf res (reduce #'comb ids))
+    (database-identifier
+     (if all-sym? (intern res pkg) res)
+     database)))
+
+(defun escaped-database-identifier (name &optional database find-class-p)
+  (escaped (database-identifier name database find-class-p)))
+
+(defun unescaped-database-identifier (name &optional database find-class-p)
+  (unescaped (database-identifier name database find-class-p)))
+
 (defun sql-output (sql-expr &optional (database *default-database*))
   "Top-level call for generating SQL strings. Returns an SQL
   string appropriate for DATABASE which corresponds to the
@@ -107,13 +270,12 @@
     sql
     `(make-instance 'sql-ident :name ',name)))
 
+(defmethod output-sql ((expr %database-identifier) database)
+  (write-string (escaped expr) *sql-stream*))
+
 (defmethod output-sql ((expr sql-ident) database)
   (with-slots (name) expr
-    (write-string
-     (etypecase name
-       (string name)
-       (symbol (symbol-name name)))
-     *sql-stream*))
+    (write-string (escaped-database-identifier name database) *sql-stream*))
   t)
 
 ;; For SQL Identifiers for attributes
@@ -134,7 +296,10 @@
 (defmethod collect-table-refs ((sql sql-ident-attribute))
   (let ((qual (slot-value sql 'qualifier)))
     (when qual
-      (list (make-instance 'sql-ident-table :name qual)))))
+      ;; going to be used as a table, search classes
+      (list (make-instance
+             'sql-ident-table
+             :name (database-identifier qual nil t))))))
 
 (defmethod make-load-form ((sql sql-ident-attribute) &optional environment)
   (declare (ignore environment))
@@ -143,35 +308,6 @@
     `(make-instance 'sql-ident-attribute :name ',name
       :qualifier ',qualifier
       :type ',type)))
-
-(defmethod output-sql ((expr sql-ident-attribute) database)
-  (with-slots (qualifier name type) expr
-    (if (and (not qualifier) (not type))
-        (etypecase name
-          (string
-           (write-string name *sql-stream*))
-          (symbol
-           (write-string
-            (sql-escape (symbol-name name)) *sql-stream*)))
-
-        ;;; KMR: The TYPE field is used by CommonSQL for type conversion -- it
-      ;;; should not be output in SQL statements
-      #+ignore
-      (format *sql-stream* "~@[~A.~]~A~@[ ~A~]"
-              (when qualifier
-                (sql-escape qualifier))
-              (sql-escape name)
-              (when type
-                (symbol-name type)))
-      (format *sql-stream* "~@[~A.~]~A"
-              (when qualifier
-                (typecase qualifier
-                  (string (format nil "~s" qualifier))
-                  (t (sql-escape qualifier))))
-              (typecase name
-                (string (format nil "~s" (sql-escape name)))
-                (t (sql-escape name)))))
-    t))
 
 (defmethod output-sql-hash-key ((expr sql-ident-attribute) database)
   (with-slots (qualifier name type)
@@ -192,26 +328,29 @@
     sql
     `(make-instance 'sql-ident-table :name ',name :table-alias ',alias)))
 
-(defun special-char-p (s)
-  "Check if a string has any special characters"
-  (loop for char across s
-       thereis (find char '(#\space #\, #\. #\! #\@ #\# #\$ #\%
-                                 #\^ #\& #\* #\| #\( #\) #\- #\+))))
-
 (defmethod output-sql ((expr sql-ident-table) database)
   (with-slots (name alias) expr
     (flet ((p (s) ;; the etypecase is in sql-escape too
-	     (let ((sym? (symbolp s))
-		   (s (sql-escape s)))
-	       (format *sql-stream*
-		       (if (and sym? (not (special-char-p s)))
-			   "~a" "~s")
-		       s))))
+             (write-string
+              (escaped-database-identifier s database)
+              *sql-stream*)))
       (p name)
       (when alias
 	(princ #\space *sql-stream*)
 	(p alias))))
   t)
+
+(defmethod output-sql ((expr sql-ident-attribute) database)
+;;; KMR: The TYPE field is used by CommonSQL for type conversion -- it
+;;; should not be output in SQL statements
+  (let ((*print-pretty* nil))
+    (with-slots (qualifier name type) expr
+      (format *sql-stream* "~@[~a.~]~a"
+              (when qualifier
+                ;; check for classes
+                (escaped-database-identifier qualifier database T))
+              (escaped-database-identifier name database))
+      t)))
 
 (defmethod output-sql-hash-key ((expr sql-ident-table) database)
   (with-slots (name alias)
@@ -238,10 +377,7 @@
     (dolist (exp (slot-value sql 'sub-expressions))
       (let ((refs (collect-table-refs exp)))
         (if refs (setf tabs (append refs tabs)))))
-    (remove-duplicates tabs
-                       :test (lambda (tab1 tab2)
-                               (equal (slot-value tab1 'name)
-                                      (slot-value tab2 'name))))))
+    (remove-duplicates tabs :test #'database-identifier-equal)))
 
 
 
@@ -336,10 +472,7 @@
           (dolist (exp (slot-value sql 'components))
             (let ((refs (collect-table-refs exp)))
               (if refs (setf tabs (append refs tabs)))))
-          (remove-duplicates tabs
-                             :test (lambda (tab1 tab2)
-                                     (equal (slot-value tab1 'name)
-                                            (slot-value tab2 'name)))))
+          (remove-duplicates tabs :test #'database-identifier-equal))
         nil)))
 
 
@@ -384,10 +517,7 @@
     (dolist (exp (slot-value sql 'args))
       (let ((refs (collect-table-refs exp)))
         (if refs (setf tabs (append refs tabs)))))
-    (remove-duplicates tabs
-                       :test (lambda (tab1 tab2)
-                               (equal (slot-value tab1 'name)
-                                      (slot-value tab2 'name))))))
+    (remove-duplicates tabs :test #'database-identifier-equal)))
 (defvar *in-subselect* nil)
 
 (defmethod output-sql ((expr sql-function-exp) database)
@@ -445,10 +575,7 @@
     (dolist (exp (slot-value sql 'sub-expressions))
       (let ((refs (collect-table-refs exp)))
         (if refs (setf tabs (append refs tabs)))))
-    (remove-duplicates tabs
-                       :test (lambda (tab1 tab2)
-                               (equal (slot-value tab1 'name)
-                                      (slot-value tab2 'name))))))
+    (remove-duplicates tabs :test #'database-identifier-equal)))
 
 (defmethod output-sql ((expr sql-set-exp) database)
   (with-slots (operator sub-expressions)
@@ -527,10 +654,9 @@
     :initform nil)))
 
 (defmethod collect-table-refs ((sql sql-query))
-  (remove-duplicates (collect-table-refs (slot-value sql 'where))
-                     :test (lambda (tab1 tab2)
-                             (equal (slot-value tab1 'name)
-                                    (slot-value tab2 'name)))))
+  (remove-duplicates
+   (collect-table-refs (slot-value sql 'where))
+   :test #'database-identifier-equal))
 
 (defvar *select-arguments*
   '(:all :database :distinct :flatp :from :group-by :having :order-by
@@ -602,24 +728,16 @@ uninclusive, and the args from that keyword to the end."
       (output-sql (apply #'vector selections) database))
     (when from
       (write-string " FROM " *sql-stream*)
-      (labels ((ident-string-val (a)
-                 (typecase a
-                   (sql-ident
-                    (or (ignore-errors (slot-value a 'alias))
-                        (ignore-errors (slot-value a 'name))))
-                   (string a)))
-               (ident-table-equal (a b)
-                 ;; The things should be type compatable
-                 (string-equal (ident-string-val a)
-                               (ident-string-val b))))
-        (typecase from
-          (list (output-sql (apply #'vector
-                                   (remove-duplicates from
-                                                      :test #'ident-table-equal))
-                            database))
-          (string (format *sql-stream* "~s" (sql-escape from)))
-          (t (let ((*in-subselect* t))
-               (output-sql from database))))))
+      (typecase from
+        (list (output-sql
+               (apply #'vector
+                      (remove-duplicates from :test #'database-identifier-equal))
+               database))
+        (string (write-string
+                 (escaped-database-identifier from database)
+                 *sql-stream*))
+        (t (let ((*in-subselect* t))
+             (output-sql from database)))))
     (when inner-join
       (write-string " INNER JOIN " *sql-stream*)
       (output-sql inner-join database))
@@ -835,10 +953,7 @@ uninclusive, and the args from that keyword to the end."
     (with-slots (name columns modifiers transactions)
       stmt
       (write-string "CREATE TABLE " *sql-stream*)
-      (etypecase name
-          (string (format *sql-stream* "~s" (sql-escape name)))
-          (symbol (write-string (sql-escape name) *sql-stream*))
-          (sql-ident (output-sql name database)))
+      (write-string (escaped-database-identifier name database) *sql-stream*)
       (write-string " (" *sql-stream*)
       (do ((column columns (cdr column)))
           ((null (cdr column))
