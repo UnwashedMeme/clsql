@@ -127,8 +127,8 @@
          (database-query
           (format
            nil
-           "select indexrelid from pg_index where indrelid=(select relfilenode from pg_class where relname='~A'~A)"
-           (string-downcase table)
+           "select indexrelid from pg_index where indrelid=(select relfilenode from pg_class where LOWER(relname)='~A'~A)"
+           (string-downcase (unescaped-database-identifier table))
            (owner-clause owner))
           database :auto nil))
         (result nil))
@@ -202,14 +202,15 @@
 
 (defmethod database-create-sequence (sequence-name
                                      (database generic-postgresql-database))
-  (database-execute-command
-   (concatenate 'string "CREATE SEQUENCE " (sql-escape sequence-name))
-   database))
+  (let ((cmd (concatenate
+              'string "CREATE SEQUENCE " (escaped-database-identifier sequence-name database))))
+  (database-execute-command cmd database)))
 
 (defmethod database-drop-sequence (sequence-name
                                    (database generic-postgresql-database))
   (database-execute-command
-   (concatenate 'string "DROP SEQUENCE " (sql-escape sequence-name)) database))
+   (concatenate 'string "DROP SEQUENCE " (escaped-database-identifier sequence-name database))
+   database))
 
 (defmethod database-list-sequences ((database generic-postgresql-database)
                                     &key (owner nil))
@@ -221,7 +222,7 @@
    (parse-integer
     (caar
      (database-query
-      (format nil "SELECT SETVAL ('~A', ~A)" name position)
+      (format nil "SELECT SETVAL ('~A', ~A)" (escaped-database-identifier name) position)
       database nil nil)))))
 
 (defmethod database-sequence-next (sequence-name
@@ -230,7 +231,7 @@
    (parse-integer
     (caar
      (database-query
-      (concatenate 'string "SELECT NEXTVAL ('" (sql-escape sequence-name) "')")
+      (concatenate 'string "SELECT NEXTVAL ('" (escaped-database-identifier sequence-name) "')")
       database nil nil)))))
 
 (defmethod database-sequence-last (sequence-name (database generic-postgresql-database))
@@ -238,56 +239,68 @@
    (parse-integer
     (caar
      (database-query
-      (concatenate 'string "SELECT LAST_VALUE FROM " sequence-name)
+      (concatenate 'string "SELECT LAST_VALUE FROM " (escaped-database-identifier sequence-name))
       database nil nil)))))
 
+(defmethod auto-increment-sequence-name (table column (database generic-postgresql-database))
+  (let* ((sequence-name (or (database-identifier (slot-value column 'autoincrement-sequence))
+                            (combine-database-identifiers
+                             (list table column 'seq)
+                             database))))
+    (when (search "'" (escaped-database-identifier sequence-name)
+                  :test #'string-equal)
+      (signal-database-too-strange
+       "PG Sequence names shouldnt contain single quotes for the sake of sanity"))
+    sequence-name))
+
 (defmethod database-last-auto-increment-id ((database generic-postgresql-database) table column)
-  (let (column-helper seq-name)
-    (typecase table
-      (sql-ident (setf table (slot-value table 'name)))
-      (standard-db-class (setf table (view-table table))))
-    (typecase column
-      (sql-ident (setf column-helper (slot-value column 'name)))
-      (view-class-slot-definition-mixin
-       (setf column-helper (view-class-slot-column column))))
-    (setq seq-name (or (view-class-slot-autoincrement-sequence column)
-		       (convert-to-db-default-case (format nil "~a_~a_seq" table column-helper) database)))
-    (first (clsql:query (format nil "SELECT currval ('~a')" seq-name)
+  (let ((seq-name (auto-increment-sequence-name table column database)))
+    (first (clsql:query (format nil "SELECT currval ('~a')"
+                                (escaped-database-identifier seq-name))
 			:flatp t
 			:database database
 			:result-types '(:int)))))
 
-(defmethod database-generate-column-definition (class slotdef (database generic-postgresql-database))
-  ; handle autoincr slots special
-  (when (or (and (listp (view-class-slot-db-constraints slotdef))
-		 (member :auto-increment (view-class-slot-db-constraints slotdef)))
-	    (eql :auto-increment (view-class-slot-db-constraints slotdef))
-	    (slot-value slotdef 'autoincrement-sequence))
-    (let ((sequence-name (database-make-autoincrement-sequence class slotdef database)))
-      (setf (view-class-slot-autoincrement-sequence slotdef) sequence-name)
-      (cond ((listp (view-class-slot-db-constraints slotdef))
-	     (setf (view-class-slot-db-constraints slotdef)
-		   (remove :auto-increment 
-			   (view-class-slot-db-constraints slotdef)))
-	     (unless (member :default (view-class-slot-db-constraints slotdef))
-	       (setf (view-class-slot-db-constraints slotdef)
-		     (append
-		      (list :default (format nil "nextval('~a')" sequence-name))
-		      (view-class-slot-db-constraints slotdef)))))
-	    (t
-	     (setf (view-class-slot-db-constraints slotdef)
-		   (list :default (format nil "nextval('~a')" sequence-name)))))))
-  (call-next-method class slotdef database))
+(defmethod database-generate-column-definition
+    (class slotdef (database generic-postgresql-database))
+  (when (member (view-class-slot-db-kind slotdef) '(:base :key))
+    (let ((cdef
+            (list (sql-expression :attribute (database-identifier slotdef database))
+                  (specified-type slotdef)
+                  (view-class-slot-db-type slotdef)))
+          (const (listify (view-class-slot-db-constraints slotdef)))
+          (seq (auto-increment-sequence-name class slotdef database)))
+      (when seq
+        (setf const (remove :auto-increment const))
+        (unless (member :default const)
+          (let* ((next (format nil "nextval('~a')" (escaped-database-identifier seq))))
+            (setf const (append const (list :default next))))))
+      (append cdef const))))
 
-(defmethod database-make-autoincrement-sequence (table column (database generic-postgresql-database))
-  (let* ((table-name (view-table table))
-	 (column-name (view-class-slot-column column))
-	 (sequence-name (or (slot-value column 'autoincrement-sequence)
-			    (convert-to-db-default-case 
-			     (format nil "~a_~a_SEQ" table-name column-name) database))))
-    (unless (sequence-exists-p sequence-name  :database database)
-      (database-create-sequence sequence-name database))
-    sequence-name))
+(defmethod database-add-autoincrement-sequence
+    ((self standard-db-class) (database generic-postgresql-database))
+  (let ((ordered-slots (if (normalizedp self)
+                           (ordered-class-direct-slots self)
+                           (ordered-class-slots self))))
+    (dolist (slotdef ordered-slots)
+
+      ;; ensure that referenceed sequences actually exist before referencing them
+      (let ((sequence-name (auto-increment-sequence-name self slotdef database)))
+        (when (and sequence-name
+                   (not (sequence-exists-p sequence-name :database database)))
+          (create-sequence sequence-name :database database))))))
+
+(defmethod database-remove-autoincrement-sequence
+    ((table standard-db-class)
+     (database generic-postgresql-database))
+  (let ((ordered-slots
+          (if (normalizedp table)
+              (ordered-class-direct-slots table)
+              (ordered-class-slots table))))
+    (dolist (slotdef ordered-slots)
+      ;; ensure that referenceed sequences are dropped with the table
+      (let ((sequence-name (auto-increment-sequence-name table slotdef database)))
+        (when sequence-name (drop-sequence sequence-name))))))
 
 (defun postgresql-database-list (connection-spec type)
   (destructuring-bind (host name &rest other-args) connection-spec

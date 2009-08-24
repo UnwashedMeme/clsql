@@ -375,3 +375,20 @@ list of characters and replacement strings."
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (setq cl:*features* (delete :clsql-lowercase-reader cl:*features*)))
 
+(defun replace-all (string part replacement &key (test #'char=) stream)
+  "Returns a new string in which all the occurences of the part 
+is replaced with replacement. [FROM http://cl-cookbook.sourceforge.net/strings.html#manip]"
+  (let ((out (or stream (make-string-output-stream))))
+    (loop with part-length = (length part)
+	  for old-pos = 0 then (+ pos part-length)
+	  for pos = (search part string
+			    :start2 old-pos
+			    :test test)
+	  do (write-string string out
+		   :start old-pos
+		   :end (or pos (length string)))
+	  when pos do (write-string replacement out)
+	    while pos)
+    (unless stream
+      (get-output-stream-string out))))
+

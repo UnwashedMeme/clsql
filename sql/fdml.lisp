@@ -135,7 +135,7 @@ columns."
                             (subquery nil))
   (unless into
       (error 'sql-user-error :message ":into keyword not supplied"))
-  (let ((insert (make-instance 'sql-insert :into into)))
+  (let ((insert (make-instance 'sql-insert :into (database-identifier into nil))))
     (with-slots (attributes values query)
       insert
 
@@ -163,7 +163,7 @@ columns."
   "Deletes records satisfying the SQL expression WHERE from the
 table specified by FROM in DATABASE specifies a database which
 defaults to *DEFAULT-DATABASE*."
-  (let ((stmt (make-instance 'sql-delete :from from :where where)))
+  (let ((stmt (make-instance 'sql-delete :from (database-identifier from database) :where where)))
     (execute-command stmt :database database)))
 
 (defun update-records (table &key (attributes nil)
@@ -184,7 +184,7 @@ are nil and AV-PAIRS is an alist of (attribute value) pairs."
   (when av-pairs
     (setf attributes (mapcar #'car av-pairs)
           values (mapcar #'cadr av-pairs)))
-  (let ((stmt (make-instance 'sql-update :table table
+  (let ((stmt (make-instance 'sql-update :table (database-identifier table database)
                              :attributes attributes
                              :values values
                              :where where)))

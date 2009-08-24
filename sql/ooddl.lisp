@@ -91,13 +91,17 @@ in DATABASE which defaults to *DEFAULT-DATABASE*."
     (if tclass
         (let ((*default-database* database)
               (pclass (car (class-direct-superclasses tclass))))
-          (when (and (normalizedp tclass) (not (table-exists-p (view-table pclass))))
+          (when (and (normalizedp tclass) (not (table-exists-p pclass)))
             (create-view-from-class (class-name pclass)
                                     :database database :transactions transactions))
           (%install-class tclass database :transactions transactions))
         (error "Class ~s not found." view-class-name)))
   (values))
 
+(defmethod auto-increment-column-p (slotdef &optional (database clsql-sys:*default-database*))
+  (declare (ignore database))
+  (or (member :auto-increment (listify (view-class-slot-db-constraints slotdef)))
+      (slot-value slotdef 'autoincrement-sequence)))
 
 (defmethod %install-class ((self standard-db-class) database
                            &key (transactions t))
@@ -106,15 +110,16 @@ in DATABASE which defaults to *DEFAULT-DATABASE*."
                            (ordered-class-direct-slots self)
                            (ordered-class-slots self))))
     (dolist (slotdef ordered-slots)
-      (let ((res (database-generate-column-definition self
-                                                      slotdef database)))
+      (let ((res (database-generate-column-definition self slotdef database)))
         (when res
           (push res schemadef))))
     (if (not schemadef)
         (unless (normalizedp self)
           (error "Class ~s has no :base slots" self))
         (progn
-          (create-table (sql-expression :table (view-table self)) (nreverse schemadef)
+          (database-add-autoincrement-sequence self database)
+          (create-table (sql-expression :table (database-identifier self database))
+                        (nreverse schemadef)
                         :database database
                         :transactions transactions
                         :constraints (database-pkey-constraint self database))
@@ -122,22 +127,21 @@ in DATABASE which defaults to *DEFAULT-DATABASE*."
   t)
 
 (defmethod database-pkey-constraint ((class standard-db-class) database)
-  (let ((keylist (mapcar #'view-class-slot-column (keyslots-for-class class)))
-        (table (view-table class)))
+  ;; Keylist will always be a list of escaped-indentifier
+  (let ((keylist (mapcar #'(lambda (x) (escaped-database-identifier x database))
+                         (keyslots-for-class class)))
+        (table (escaped (combine-database-identifiers
+                         (list class 'PK)
+                         database))))
     (when keylist
-      (etypecase table
-        (string
-         (format nil "CONSTRAINT \"~APK\" PRIMARY KEY~A" table
-                 (sql-output keylist database)))
-        ((or symbol sql-ident)
-         (format nil "CONSTRAINT ~APK PRIMARY KEY~A" table
-                 (sql-output keylist database)))))))
+      (format nil "CONSTRAINT ~A PRIMARY KEY (~{~A~^,~})" table
+              keylist))))
 
 (defmethod database-generate-column-definition (class slotdef database)
-  (declare (ignore database class))
+  (declare (ignore class))
   (when (member (view-class-slot-db-kind slotdef) '(:base :key))
     (let ((cdef
-           (list (sql-expression :attribute (view-class-slot-column slotdef))
+           (list (sql-expression :attribute (database-identifier slotdef database))
                  (specified-type slotdef))))
       (setf cdef (append cdef (list (view-class-slot-db-type slotdef))))
       (let ((const (view-class-slot-db-constraints slotdef)))
@@ -164,10 +168,11 @@ DATABASE which defaults to *DEFAULT-DATABASE*."
 (defun %uninstall-class (self &key
                          (database *default-database*)
                          (owner nil))
-  (drop-table (sql-expression :table (view-table self))
+  (drop-table (sql-expression :table (database-identifier self database))
               :if-does-not-exist :ignore
               :database database
               :owner owner)
+  (database-remove-autoincrement-sequence self database)
   (setf (database-view-classes database)
         (remove self (database-view-classes database))))
 

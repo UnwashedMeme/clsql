@@ -330,4 +330,3 @@
 (defmethod read-sql-value (val (type (eql 'generalized-boolean)) (database postgresql-socket3-database) db-type)
   (declare (ignore database db-type))
   val)
-

@@ -19,7 +19,7 @@
     (flet ((qfk (k)
              (sql-operation '==
                             (sql-expression :attribute
-                                            (view-class-slot-column k)
+                                            (database-identifier k database)
                                             :table tb)
                             (db-value-from-slot
                              k
@@ -39,11 +39,11 @@
 (defun generate-attribute-reference (vclass slotdef)
   (cond
     ((eq (view-class-slot-db-kind slotdef) :base)
-     (sql-expression :attribute (view-class-slot-column slotdef)
-                     :table (view-table vclass)))
+     (sql-expression :attribute (database-identifier slotdef nil)
+                     :table (database-identifier vclass nil)))
     ((eq (view-class-slot-db-kind slotdef) :key)
-     (sql-expression :attribute (view-class-slot-column slotdef)
-                     :table (view-table vclass)))
+     (sql-expression :attribute (database-identifier slotdef nil)
+                     :table (database-identifier vclass nil)))
     (t nil)))
 
 ;;
@@ -196,7 +196,7 @@
     (let* ((vct (view-table view-class))
            (sd (slotdef-for-slot-with-class slot view-class)))
       (check-slot-type sd (slot-value obj slot))
-      (let* ((att (view-class-slot-column sd))
+      (let* ((att (database-identifier sd database))
              (val (db-value-from-slot sd (slot-value obj slot) database)))
         (cond ((and vct sd (view-database obj))
                (update-records (sql-expression :table vct)
@@ -232,7 +232,7 @@
                                        obj (slot-definition-name s))))
                              (check-slot-type s val)
                              (list (sql-expression
-                                    :attribute (view-class-slot-column s))
+                                    :attribute (database-identifier s database))
                                    (db-value-from-slot s val database))))
                        sds)))
     (cond ((and avps (view-database obj))
@@ -263,7 +263,7 @@
              (slot-value-list (slot)
                (let ((value (slot-value obj (slot-definition-name slot))))
                  (check-slot-type slot value)
-                 (list (sql-expression :attribute (view-class-slot-column slot))
+                 (list (sql-expression :attribute (database-identifier slot database))
                        (db-value-from-slot slot value database)))))
       (let* ((view-class (or this-class (class-of obj)))
              (pk-slot (car (keyslots-for-class view-class)))
@@ -304,12 +304,11 @@
                                  :database database)
 
 		  (when (and pk-slot (not pk))
-		    (setf pk (if (or (member :auto-increment (listify (view-class-slot-db-constraints pk-slot)))
-				     (not (null (view-class-slot-autoincrement-sequence pk-slot))))
-				 (setf (slot-value obj (slot-definition-name pk-slot))
-				       (database-last-auto-increment-id database
-								       view-class-table
-								       pk-slot)))))
+		    (setf pk
+                          (when (auto-increment-column-p pk-slot database)
+                            (setf (slot-value obj (slot-definition-name pk-slot))
+                                  (database-last-auto-increment-id
+                                   database view-class-table pk-slot)))))
 		  (when pk-slot
 		    (setf pk (or pk
 				 (slot-value
@@ -406,7 +405,7 @@
                (sld (slotdef-for-slot-with-class slot class)))
           (if sld
               (if (eq value +no-slot-value+)
-                  (sql-expression :attribute (view-class-slot-column sld)
+                  (sql-expression :attribute (database-identifier sld database)
                                   :table (view-table class))
                   (db-value-from-slot
                    sld
@@ -941,8 +940,8 @@ maximum of MAX-LEN instances updated in each query."
                                  (symbol
                                   (sql-expression
                                    :attribute
-                                   (view-class-slot-column
-                                    (slotdef-for-slot-with-class fk sc))
+                                   (database-identifier
+                                    (slotdef-for-slot-with-class fk sc) nil)
                                    :table (view-table sc)))
                                  (t fk))
                                (typecase hk
@@ -989,8 +988,8 @@ maximum of MAX-LEN instances updated in each query."
                                             (symbol
                                              (sql-expression
                                               :attribute
-                                              (view-class-slot-column fksd)
-                                              :table (view-table jc)))
+                                              (database-identifier fksd nil)
+                                              :table (database-identifier jc nil)))
                                             (t fk))
                                           (typecase hk
                                             (symbol
@@ -1092,11 +1091,7 @@ maximum of MAX-LEN instances updated in each query."
   (declare (ignore all set-operation group-by having offset limit inner-join on))
   (flet ((ref-equal (ref1 ref2)
            (string= (sql-output ref1 database)
-                    (sql-output ref2 database)))
-         (tables-equal (table-a table-b)
-           (when (and table-a table-b)
-             (string= (string (slot-value table-a 'name))
-                      (string (slot-value table-b 'name))))))
+                    (sql-output ref2 database))))
     (remf args :from)
     (remf args :where)
     (remf args :flatp)
@@ -1126,7 +1121,7 @@ maximum of MAX-LEN instances updated in each query."
                                                     jc-list))
                                                immediate-join-classes)
                                        sel-tables)
-                               :test #'tables-equal)))
+                               :test #'database-identifier-equal)))
            (order-by-slots (mapcar #'(lambda (ob) (if (atom ob) ob (car ob)))
                                    (listify order-by)))
            (join-where nil))
