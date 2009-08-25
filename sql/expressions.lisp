@@ -243,18 +243,20 @@
 
 (defmethod output-sql ((expr sql-relational-exp) database)
   (with-slots (operator sub-expressions)
-    expr
-    (let ((subs (if (consp (car sub-expressions))
-                    (car sub-expressions)
-                    sub-expressions)))
-      (write-char #\( *sql-stream*)
-      (do ((sub subs (cdr sub)))
-          ((null (cdr sub)) (output-sql (car sub) database))
-        (output-sql (car sub) database)
-        (write-char #\Space *sql-stream*)
-        (output-sql operator database)
-        (write-char #\Space *sql-stream*))
-      (write-char #\) *sql-stream*)))
+      expr
+    (when sub-expressions
+      (let ((subs (if (consp (car sub-expressions))
+		      (car sub-expressions)
+		      sub-expressions)))
+	(write-char #\( *sql-stream*)
+	(do ((sub subs (cdr sub)))
+	    ((null (cdr sub))
+	       (output-sql (car sub) database))
+	  (output-sql (car sub) database)
+	  (write-char #\Space *sql-stream*)
+	  (output-sql operator database)
+	  (write-char #\Space *sql-stream*))
+	(write-char #\) *sql-stream*))))
   t)
 
 (defclass sql-upcase-like (sql-relational-exp)
