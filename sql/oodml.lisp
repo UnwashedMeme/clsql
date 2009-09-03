@@ -1075,6 +1075,11 @@ maximum of MAX-LEN instances updated in each query."
           (car objects)
           objects))))
 
+(defmethod select-table-sql-expr ((table T))
+  "Turns an object representing a table into the :from part of the sql expression that will be executed "
+  (sql-expression :table (view-table table)))
+
+
 (defun find-all (view-classes
                  &rest args
                  &key all set-operation distinct from where group-by having
@@ -1088,8 +1093,6 @@ maximum of MAX-LEN instances updated in each query."
   (flet ((ref-equal (ref1 ref2)
            (string= (sql-output ref1 database)
                     (sql-output ref2 database)))
-         (table-sql-expr (table)
-           (sql-expression :table (view-table table)))
          (tables-equal (table-a table-b)
            (when (and table-a table-b)
              (string= (string (slot-value table-a 'name))
@@ -1116,10 +1119,10 @@ maximum of MAX-LEN instances updated in each query."
            (sel-tables (collect-table-refs where))
            (tables (remove-if #'null
                               (remove-duplicates
-                               (append (mapcar #'table-sql-expr sclasses)
+                               (append (mapcar #'select-table-sql-expr sclasses)
                                        (mapcan #'(lambda (jc-list)
                                                    (mapcar
-                                                    #'(lambda (jc) (when jc (table-sql-expr jc)))
+                                                    #'(lambda (jc) (when jc (select-table-sql-expr jc)))
                                                     jc-list))
                                                immediate-join-classes)
                                        sel-tables)
