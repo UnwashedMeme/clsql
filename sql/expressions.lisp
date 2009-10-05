@@ -625,9 +625,14 @@ uninclusive, and the args from that keyword to the end."
       (write-string " ON " *sql-stream*)
       (output-sql on database))
     (when where
-      (write-string " WHERE " *sql-stream*)
-      (let ((*in-subselect* t))
-        (output-sql where database)))
+      (let ((where-out (string-trim
+                        '(#\newline #\space #\tab #\return)
+                        (with-output-to-string (*sql-stream*)
+                          (let ((*in-subselect* t))
+                            (output-sql where database))))))
+        (when (> (length where-out) 0)
+          (write-string " WHERE " *sql-stream*)
+          (write-string where-out *sql-stream*))))
     (when group-by
       (write-string " GROUP BY " *sql-stream*)
       (if (listp group-by)
