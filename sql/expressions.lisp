@@ -245,18 +245,32 @@
   (with-slots (operator sub-expressions)
       expr
     (when sub-expressions
-      (let ((subs (if (consp (car sub-expressions))
-		      (car sub-expressions)
-		      sub-expressions)))
-	(write-char #\( *sql-stream*)
-	(do ((sub subs (cdr sub)))
-	    ((null (cdr sub))
-	       (output-sql (car sub) database))
-	  (output-sql (car sub) database)
-	  (write-char #\Space *sql-stream*)
-	  (output-sql operator database)
-	  (write-char #\Space *sql-stream*))
-	(write-char #\) *sql-stream*))))
+      (let (has-written)
+	;; we do this as two runs so as not to emit confusing superflous parentheses
+	;; The first loop renders all the child outputs so that we can skip anding with
+	;; empty output (which causes sql errors)
+	;; the next loop simply emits each sub-expression with the appropriate number of
+	;; parens and operators
+	(let ((str-subs (loop for sub in sub-expressions
+			      for str-sub = (string-trim '(#\space #\newline #\return #\tab #\no-break_space)
+							  (with-output-to-string (*sql-stream*)
+							    (output-sql sub database)))
+			      when (and str-sub (> (length str-sub) 0))
+				collect str-sub
+			      )))
+	  (loop for str-sub in str-subs
+		do
+	     (progn
+	       (when (and (not has-written)
+			  (> (length str-subs) 1))
+		 (write-char #\( *sql-stream*))
+	       (when has-written
+		 (write-char #\Space *sql-stream*)
+		 (output-sql operator database))
+	       (write-string str-sub *sql-stream*)
+	       (setf has-written T)))
+	  (when (and has-written (> (length str-subs) 1))
+	    (write-char #\) *sql-stream*))))))
   t)
 
 (defclass sql-array-exp (sql-relational-exp)
