@@ -242,35 +242,34 @@
 ;; should do arity checking of subexpressions
 
 (defmethod output-sql ((expr sql-relational-exp) database)
-  (with-slots (operator sub-expressions)
-      expr
-    (when sub-expressions
-      (let (has-written)
-	;; we do this as two runs so as not to emit confusing superflous parentheses
-	;; The first loop renders all the child outputs so that we can skip anding with
-	;; empty output (which causes sql errors)
-	;; the next loop simply emits each sub-expression with the appropriate number of
-	;; parens and operators
-	(let ((str-subs (loop for sub in sub-expressions
-			      for str-sub = (string-trim '(#\space #\newline #\return #\tab #\no-break_space)
-							  (with-output-to-string (*sql-stream*)
-							    (output-sql sub database)))
-			      when (and str-sub (> (length str-sub) 0))
-				collect str-sub
-			      )))
-	  (loop for str-sub in str-subs
-		do
-	     (progn
-	       (when (and (not has-written)
-			  (> (length str-subs) 1))
-		 (write-char #\( *sql-stream*))
-	       (when has-written
+  (with-slots (operator sub-expressions) expr
+     ;; we do this as two runs so as not to emit confusing superflous parentheses
+     ;; The first loop renders all the child outputs so that we can skip anding with
+     ;; empty output (which causes sql errors)
+     ;; the next loop simply emits each sub-expression with the appropriate number of
+     ;; parens and operators
+     (flet ((trim (sub)
+	      (string-trim '(#\space #\newline #\return #\tab #\no-break_space)
+			   (with-output-to-string (*sql-stream*)
+			     (output-sql sub database)))))
+       (let ((str-subs (loop for sub in sub-expressions
+			     for str-sub = (trim sub)
+			   when (and str-sub (> (length str-sub) 0))
+			     collect str-sub)))
+	 (case (length str-subs)
+	   (0 nil)
+	   (1 (write-string (first str-subs) *sql-stream*))
+	   (t
+	      (write-char #\( *sql-stream*)
+	      (write-string (first str-subs) *sql-stream*)
+	      (loop for str-sub in (rest str-subs)
+		    do
 		 (write-char #\Space *sql-stream*)
-		 (output-sql operator database))
-	       (write-string str-sub *sql-stream*)
-	       (setf has-written T)))
-	  (when (and has-written (> (length str-subs) 1))
-	    (write-char #\) *sql-stream*))))))
+		 (output-sql operator database)
+		 (write-char #\Space *sql-stream*)
+		 (write-string str-sub *sql-stream*))
+	      (write-char #\) *sql-stream*))
+	   ))))
   t)
 
 (defclass sql-array-exp (sql-relational-exp)
