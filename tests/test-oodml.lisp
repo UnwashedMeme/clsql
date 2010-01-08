@@ -365,291 +365,224 @@
           "Vladimir Lenin: lenin@soviet.org")
 
         (deftest :oodml/update-records/4
-         (values
-          (progn
-            (let ((base (car (clsql:select 'node
-                                           :where [= [slot-value 'node 'node-id]
-                                                     1]
-                                           :flatp t
-                                           :caching nil))))
-              (with-output-to-string (out)
-                (format out "~a ~a"
-                        (slot-value base 'node-id)
-                        (slot-value base 'title)))))
-          (progn
-            (let ((base (car (clsql:select 'node
-                                           :where [= [slot-value 'node 'node-id]
-                                                     1]
-                                           :flatp t
-                                           :caching nil))))
-              (setf (slot-value base 'title) "Altered title")
-              (clsql:update-records-from-instance base)
-              (with-output-to-string (out)
-                (format out "~a ~a"
-                        (slot-value base 'node-id)
-                        (slot-value base 'title)))))
-          (progn
-            (let ((base (car (clsql:select 'node
-                                           :where [= [slot-value 'node 'node-id]
-                                                     1]
-                                           :flatp t
-                                           :caching nil))))
-              (setf (slot-value base 'title) "Bare node")
-              (clsql:update-records-from-instance base)
-              (with-output-to-string (out)
-                (format out "~a ~a"
-                        (slot-value base 'node-id)
-                        (slot-value base 'title))))))
+	  (flet ((print-fresh-node ()
+		   (let ((base (car (clsql:select 'node
+				      :where [= [slot-value 'node 'node-id]
+						1]
+				      :flatp t
+				      :caching nil))))
+		     (format nil "~a ~a"
+			     (slot-value base 'node-id)
+			     (slot-value base 'title)))))
+	    (values
+	      (print-fresh-node)
+	      (let ((base (car (clsql:select 'node
+				 :where [= [slot-value 'node 'node-id]
+					   1]
+				 :flatp t
+				 :caching nil))))
+		(setf (slot-value base 'title) "Altered title")
+		(clsql:update-records-from-instance base)
+		(print-fresh-node))
+	      (let ((base (car (clsql:select 'node
+				 :where [= [slot-value 'node 'node-id]
+					   1]
+				 :flatp t
+				 :caching nil))))
+		(setf (slot-value base 'title) "Bare node")
+		(clsql:update-records-from-instance base)
+		(print-fresh-node))))
           "1 Bare node"
           "1 Altered title"
           "1 Bare node")
 
         (deftest :oodml/update-records/5
-         (values
-          (progn
-            (let ((node (car (clsql:select 'setting
-                                           :where [= [slot-value 'setting 'setting-id]
-                                                     3]
-                                           :flatp t
-                                           :caching nil))))
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value node 'setting-id)
-                        (slot-value node 'title)
-                        (slot-value node 'vars)))))
-          (progn
-            (let ((node (car (clsql:select 'setting
-                                           :where [= [slot-value 'setting 'setting-id]
-                                                     3]
-                                           :flatp t
-                                           :caching nil))))
-              (setf (slot-value node 'title) "Altered title")
-              (setf (slot-value node 'vars) "Altered vars")
-              (clsql:update-records-from-instance node)
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value node 'setting-id)
-                        (slot-value node 'title)
-                        (slot-value node 'vars)))))
-          (progn
-            (let ((node (car (clsql:select 'setting
-                                           :where [= [slot-value 'setting 'setting-id]
-                                                     3]
-                                           :flatp t
-                                           :caching nil))))
-              (setf (slot-value node 'title) "Setting2")
-              (setf (slot-value node 'vars) "var 2")
-              (clsql:update-records-from-instance node)
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value node 'setting-id)
-                        (slot-value node 'title)
-                        (slot-value node 'vars))))))
+	  (flet ((print-fresh-setting ()
+		   (let ((node (car (clsql:select 'setting
+				      :where [= [slot-value 'setting 'setting-id]
+						3]
+				      :flatp t
+				      :caching nil))))
+		     (format nil "~a ~a ~a"
+			     (slot-value node 'setting-id)
+			     (slot-value node 'title)
+			     (slot-value node 'vars)))))
+	    (values
+	      (print-fresh-setting)
+	      (let ((node (car (clsql:select 'setting
+				 :where [= [slot-value 'setting 'setting-id]
+					   3]
+				 :flatp t
+				 :caching nil))))
+		(setf (slot-value node 'title) "Altered title")
+		(setf (slot-value node 'vars) "Altered vars")
+		(clsql:update-records-from-instance node)
+		(print-fresh-setting))
+	      (let ((node (car (clsql:select 'setting
+				 :where [= [slot-value 'setting 'setting-id]
+					   3]
+				 :flatp t
+				 :caching nil))))
+		(setf (slot-value node 'title) "Setting2")
+		(setf (slot-value node 'vars) "var 2")
+		(clsql:update-records-from-instance node)
+		(print-fresh-setting))))
           "3 Setting2 var 2"
           "3 Altered title Altered vars"
           "3 Setting2 var 2")
 
         (deftest :oodml/update-records/6
-         (values
-          (progn
-            (let ((node (car (clsql:select 'setting
-                                           :where [= [slot-value 'setting 'setting-id]
-                                                     7]
-                                           :flatp t
-                                           :caching nil))))
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value node 'setting-id)
-                        (slot-value node 'title)
-                        (slot-value node 'vars)))))
-          (progn
-            (let ((node (car (clsql:select 'setting
-                                           :where [= [slot-value 'setting 'setting-id]
-                                                     7]
-                                           :flatp t
-                                           :caching nil))))
-              (setf (slot-value node 'title) "Altered title")
-              (setf (slot-value node 'vars) "Altered vars")
-              (clsql:update-records-from-instance node)
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value node 'setting-id)
-                        (slot-value node 'title)
-                        (slot-value node 'vars)))))
-          (progn
-            (let ((node (car (clsql:select 'setting
-                                           :where [= [slot-value 'setting 'setting-id]
-                                                     7]
-                                           :flatp t
-                                           :caching nil))))
-              (setf (slot-value node 'title) "theme-2")
-              (setf (slot-value node 'vars) nil)
-              (clsql:update-records-from-instance node)
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value node 'setting-id)
-                        (slot-value node 'title)
-                        (slot-value node 'vars))))))
+	  (flet ((print-fresh-setting ()
+		   (let ((node (car (clsql:select 'setting
+				      :where [= [slot-value 'setting 'setting-id]
+						7]
+				      :flatp t
+				      :caching nil))))
+		     (format nil "~a ~a ~a"
+			     (slot-value node 'setting-id)
+			     (slot-value node 'title)
+			     (slot-value node 'vars)))
+		   ))
+	    (values
+	      (print-fresh-setting)
+	      (let ((node (car (clsql:select 'setting
+				 :where [= [slot-value 'setting 'setting-id]
+					   7]
+				 :flatp t
+				 :caching nil))))
+		(setf (slot-value node 'title) "Altered title")
+		(setf (slot-value node 'vars) "Altered vars")
+		(clsql:update-records-from-instance node)
+		(print-fresh-setting))
+	      (let ((node (car (clsql:select 'setting
+				 :where [= [slot-value 'setting 'setting-id]
+					   7]
+				 :flatp t
+				 :caching nil))))
+		(setf (slot-value node 'title) "theme-2")
+		(setf (slot-value node 'vars) nil)
+		(clsql:update-records-from-instance node)
+		(print-fresh-setting))))
           "7 theme-2 NIL"
           "7 Altered title Altered vars"
           "7 theme-2 NIL")
 
         (deftest :oodml/update-records/7
-         (values
-          (progn
-            (let ((node (car (clsql:select 'user
-                                           :where [= [slot-value 'user 'user-id]
-                                                     5]
-                                           :flatp t
-                                           :caching nil))))
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value node 'user-id)
-                        (slot-value node 'title)
-                        (slot-value node 'nick)))))
-          (progn
-            (let ((node (car (clsql:select 'user
-                                           :where [= [slot-value 'user 'user-id]
-                                                     5]
-                                           :flatp t
-                                           :caching nil))))
-              (setf (slot-value node 'title) "Altered title")
-              (setf (slot-value node 'nick) "Altered nick")
-              (clsql:update-records-from-instance node)
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value node 'user-id)
-                        (slot-value node 'title)
-                        (slot-value node 'nick)))))
-          (progn
-            (let ((node (car (clsql:select 'user
-                                           :where [= [slot-value 'user 'user-id]
-                                                     5]
-                                           :flatp t
-                                           :caching nil))))
-              (setf (slot-value node 'title) "user-2")
-              (setf (slot-value node 'nick) "second user")
-              (clsql:update-records-from-instance node)
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value node 'user-id)
-                        (slot-value node 'title)
-                        (slot-value node 'nick))))))
+         (flet ((print-fresh-user ()
+		  "requery to get what the db has, and print out."
+		  (let ((node (car (clsql:select 'user
+				     :where [= [slot-value 'user 'user-id]
+					       5]
+				     :flatp t
+				     :caching nil))))
+		    (format nil "~a ~a ~a"
+			    (slot-value node 'user-id)
+			    (slot-value node 'title)
+			    (slot-value node 'nick)))))
+	   (values
+	     (print-fresh-user)
+	     (let ((node (car (clsql:select 'user
+				:where [= [slot-value 'user 'user-id]
+					  5]
+				:flatp t
+				:caching nil))))
+	       (setf (slot-value node 'title) "Altered title")
+	       (setf (slot-value node 'nick) "Altered nick")
+	       (clsql:update-records-from-instance node)
+	       (print-fresh-user))
+	     (let ((node (car (clsql:select 'user
+				:where [= [slot-value 'user 'user-id]
+					  5]
+				:flatp t
+				:caching nil))))
+	       (setf (slot-value node 'title) "user-2")
+	       (setf (slot-value node 'nick) "second user")
+	       (clsql:update-records-from-instance node)
+	       (print-fresh-user))))
           "5 user-2 second user"
           "5 Altered title Altered nick"
           "5 user-2 second user")
 
         (deftest :oodml/update-records/8
-         (values
-          (progn
-            (let ((node (car (clsql:select 'theme
-                                           :where [= [slot-value 'theme 'theme-id]
-                                                     6]
-                                           :flatp t
-                                           :caching nil))))
-              (with-output-to-string (out)
-                (format out "~a ~a ~a ~a ~a ~a"
-                        (slot-value node 'node-id)
-                        (slot-value node 'setting-id)
-                        (slot-value node 'theme-id)
-                        (slot-value node 'title)
-                        (slot-value node 'vars)
-                        (slot-value node 'doc)))))
-          (progn
-            (let ((node (car (clsql:select 'setting
-                                           :where [= [slot-value 'setting 'setting-id]
-                                                     6]
-                                           :flatp t
-                                           :caching nil))))
-              (setf (slot-value node 'title) "Altered title")
-              (setf (slot-value node 'vars) nil)
-              (clsql:update-records-from-instance node)
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value node 'setting-id)
-                        (slot-value node 'title)
-                        (slot-value node 'vars)))))
-          (progn
-            (let ((node (car (clsql:select 'theme
-                                           :where [= [slot-value 'theme 'theme-id]
-                                                     6]
-                                           :flatp t
-                                           :caching nil))))
-              (setf (slot-value node 'title) "Altered title again")
-              (setf (slot-value node 'doc) "altered doc")
-              (clsql:update-records-from-instance node)
-              (with-output-to-string (out)
-                (format out "~a ~a ~a ~a ~a ~a"
-                        (slot-value node 'node-id)
-                        (slot-value node 'setting-id)
-                        (slot-value node 'theme-id)
-                        (slot-value node 'title)
-                        (slot-value node 'vars)
-                        (slot-value node 'doc)))))
-          (progn
-            (let ((node (car (clsql:select 'theme
-                                           :where [= [slot-value 'theme 'theme-id]
-                                                     6]
-                                           :flatp t
-                                           :caching nil))))
-              (setf (slot-value node 'title) "theme-1")
-              (setf (slot-value node 'vars) "empty")
-              (setf (slot-value node 'doc) "first theme")
-              (clsql:update-records-from-instance node)
-              (with-output-to-string (out)
-                (format out "~a ~a ~a ~a ~a ~a"
-                        (slot-value node 'node-id)
-                        (slot-value node 'setting-id)
-                        (slot-value node 'theme-id)
-                        (slot-value node 'title)
-                        (slot-value node 'vars)
-                        (slot-value node 'doc))))))
+	  (flet ((print-fresh-theme ()
+		   (let ((node (car (clsql:select 'theme
+				      :where [= [slot-value 'theme 'theme-id]
+						6]
+				      :flatp t
+				      :caching nil))))
+		     (format nil "~a ~a ~a ~a ~a ~a"
+			     (slot-value node 'node-id)
+			     (slot-value node 'setting-id)
+			     (slot-value node 'theme-id)
+			     (slot-value node 'title)
+			     (slot-value node 'vars)
+			     (slot-value node 'doc)))))
+	    (values
+	      (print-fresh-theme)
+	      (let ((node (car (clsql:select 'setting
+				 :where [= [slot-value 'setting 'setting-id]
+					   6]
+				 :flatp t
+				 :caching nil))))
+		(setf (slot-value node 'title) "Altered title")
+		(setf (slot-value node 'vars) nil)
+		(clsql:update-records-from-instance node)
+		(print-fresh-theme))
+	      (let ((node (car (clsql:select 'theme
+				 :where [= [slot-value 'theme 'theme-id]
+					   6]
+				 :flatp t
+				 :caching nil))))
+		(setf (slot-value node 'title) "Altered title again")
+		(setf (slot-value node 'doc) "altered doc")
+		(clsql:update-records-from-instance node)
+		(print-fresh-theme))
+	      (let ((node (car (clsql:select 'theme
+				 :where [= [slot-value 'theme 'theme-id]
+					   6]
+				 :flatp t
+				 :caching nil))))
+		(setf (slot-value node 'title) "theme-1")
+		(setf (slot-value node 'vars) "empty")
+		(setf (slot-value node 'doc) "first theme")
+		(clsql:update-records-from-instance node)
+		(print-fresh-theme))))
           "6 6 6 theme-1 empty first theme"
-          "6 Altered title NIL"
+	  "6 6 6 Altered title NIL first theme"
           "6 6 6 Altered title again NIL altered doc"
           "6 6 6 theme-1 empty first theme")
 
-		(deftest :oodml/update-records/9
-         (values
-          (progn
-            (let ((sl (car (clsql:select 'subloc
-										 :where [= [slot-value 'subloc 'subloc-id]
-												   10]
-										 :flatp t
-										 :caching nil))))
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value sl 'subloc-id)
-                        (slot-value sl 'title)
-                        (slot-value sl 'loc)))))
-          (progn
-            (let ((sl (car (clsql:select 'subloc
-										 :where [= [slot-value 'subloc 'subloc-id]
-												   10]
-										 :flatp t
-										 :caching nil))))
-              (setf (slot-value sl 'title) "Altered subloc title")
-              (setf (slot-value sl 'loc) "Altered loc")
-              (clsql:update-records-from-instance sl)
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value sl 'subloc-id)
-                        (slot-value sl 'title)
-                        (slot-value sl 'loc)))))
-          (progn
-            (let ((sl (car (clsql:select 'subloc
-										 :where [= [slot-value 'subloc 'subloc-id]
-												   10]
-										 :flatp t
-										 :caching nil))))
-              (setf (slot-value sl 'title) "subloc-1")
-              (setf (slot-value sl 'loc) "a subloc")
-              (clsql:update-records-from-instance sl)
-              (with-output-to-string (out)
-                (format out "~a ~a ~a"
-                        (slot-value sl 'subloc-id)
-                        (slot-value sl 'title)
-                        (slot-value sl 'loc))))))
+	(deftest :oodml/update-records/9
+	  (flet ((print-fresh-subloc ()
+		   (let ((sl (car (clsql:select 'subloc
+				    :where [= [slot-value 'subloc 'subloc-id]
+					      10]
+				    :flatp t
+				    :caching nil))))
+		     (format nil "~a ~a ~a"
+			     (slot-value sl 'subloc-id)
+			     (slot-value sl 'title)
+			     (slot-value sl 'loc)))))
+	    (values
+	      (print-fresh-subloc)
+	      (let ((sl (car (clsql:select 'subloc
+			       :where [= [slot-value 'subloc 'subloc-id]
+					 10]
+			       :flatp t
+			       :caching nil))))
+		(setf (slot-value sl 'title) "Altered subloc title")
+		(setf (slot-value sl 'loc) "Altered loc")
+		(clsql:update-records-from-instance sl)
+		(print-fresh-subloc))
+	      (let ((sl (car (clsql:select 'subloc
+			       :where [= [slot-value 'subloc 'subloc-id]
+					 10]
+			       :flatp t
+			       :caching nil))))
+		(setf (slot-value sl 'title) "subloc-1")
+		(setf (slot-value sl 'loc) "a subloc")
+		(clsql:update-records-from-instance sl)
+		(print-fresh-subloc))))
           "10 subloc-1 a subloc"
           "10 Altered subloc title Altered loc"
           "10 subloc-1 a subloc")
