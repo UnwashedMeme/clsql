@@ -259,9 +259,9 @@
       database nil nil)))))
 
 (defun postgresql-database-list (connection-spec type)
-  (destructuring-bind (host name user password) connection-spec
+  (destructuring-bind (host name &rest other-args) connection-spec
     (declare (ignore name))
-    (let ((database (database-connect (list host "template1" user password)
+    (let ((database (database-connect (list* host "template1" other-args)
                                       type)))
       (unwind-protect
            (progn

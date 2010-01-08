@@ -56,7 +56,7 @@
 
 (defmethod perform ((o compile-op) (c clsql-uffi-source-file))
   (unless (operation-done-p o c)
-    #-(or win32 mswindows)
+    #-(or win32 win64 windows mswindows)
     (unless (zerop (run-shell-command
 		    #-(or freebsd netbsd) "cd ~A; make"
 		    #+(or freebsd netbsd) "cd ~A; gmake"

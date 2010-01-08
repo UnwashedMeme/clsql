@@ -1,8 +1,6 @@
 ;;;; -*- Mode: LISP; Syntax: ANSI-Common-Lisp; Base: 10 -*-
 ;;;; *************************************************************************
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; A variety of structures and function for creating and
 ;;;; manipulating dates, times, durations and intervals for
 ;;;; CLSQL.
@@ -1076,10 +1074,9 @@ with the given options"
              (setf (time-mjd date) (time-mjd new-date))
              (setq date new-date))))))
   (let ((mjd (time-mjd date))
-        (sec (time-second date))
-        (usec (time-usec date)))
+        (sec (time-second date)))
     (multiple-value-bind (sec-new usec-new)
-        (floor (+ usec
+        (floor (+ usec (time-usec date)
                   (* 1000000
                      (+ sec second
                         (* 60 minute)
@@ -1254,8 +1251,9 @@ Will throw a hissy fit if the date string is a duration. Will ignore any precisi
           (index (length string))
           (months/minutes nil))
       (loop
-       (multiple-value-bind (duration next-index duration-type)
+       (multiple-value-bind (duration end next-index duration-type)
            (iso-8601-duration-subseq string index)
+         (declare (ignore end))
          (case duration-type
            (:years
             (incf years duration))
@@ -1320,16 +1318,18 @@ Will throw a hissy fit if the date string is a duration. Will ignore any precisi
                       (char= #\. (char string 19))))
              (multiple-value-bind (parsed-usec usec-end)
                  (parse-integer string :start 20 :junk-allowed t)
-               (setf usec          (or parsed-usec 0)
-                     gmt-sec-offset (if (<= (+ 3 usec-end)  strlen)
-                                        (let ((skip-to (or (position #\+ string :start 19)
-                                                           (position #\- string :start 19))))
-                                          (if skip-to
-                                              (* 60 60
-                                                 (parse-integer string :start skip-to
-                                                                :end (+ skip-to 3)))
-                                              0))
-                                        0))))
+               (let ((parsed-usec (and parsed-usec
+				       (floor (* parsed-usec (expt 10 (+ 6 (- usec-end) 20)))))))
+		 (setf usec          (or parsed-usec 0)
+		       gmt-sec-offset (if (<= (+ 3 usec-end)  strlen)
+					  (let ((skip-to (or (position #\+ string :start 19)
+							     (position #\- string :start 19))))
+					    (if skip-to
+						(* 60 60
+						   (parse-integer string :start skip-to
+								  :end (+ skip-to 3)))
+						0))
+					  0)))))
             (t
              (setf usec           0
                    gmt-sec-offset (if (<= 22  strlen)

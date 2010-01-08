@@ -19,7 +19,7 @@ all-pkgs	:= $(pkg) $(pkg-uffi) $(pkg-mysql) $(pkg-pg) $(pkg-pg-socket) $(pkg-aod
 UPSTREAM_VER	:= $(shell sed -n -e "s/${pkg} (\(.*\)-[0-9A-Za-z\.]).*/\1/p" < debian/changelog |head -1)
 
 ## Lisp sources
-srcs		:= $(wildcard sql/*.lisp) clsql.asd
+srcs-sql	:= $(wildcard sql/*.lisp)
 srcs-uffi	:= $(wildcard uffi/*.lisp) $(wildcard uffi/*.c)
 srcs-uffi-so	= $(wildcard uffi/*.so)
 srcs-mysql	:= $(wildcard db-mysql/*.lisp) $(wildcard db-mysql/*.c)
@@ -65,38 +65,31 @@ lispdir-oracle	:= $(clc-oracle)/db-oracle
 clc-tests	:= $(clc-source)/clsql-tests
 lispdir-tests	:= $(clc-tests)/tests
 
-configure: configure-stamp
-configure-stamp:
-	dh_testdir
-	touch configure-stamp
 
-
-build-arch: configure-stamp build-arch-stamp
+build-arch: build-arch-stamp
 build-arch-stamp:
 	dh_testdir
 	$(MAKE)
 	touch build-arch-stamp
 
-build-indep: configure-stamp  build-indep-stamp
-build-indep-stamp:
-	dh_testdir
-	touch build-indep-stamp
+build-indep:
 
-build: build-arch build-indep
+build: build-arch
 
 clean:
 	dh_testdir
 	dh_testroot
-	rm -f build-arch-stamp build-indep-stamp configure-stamp
+	rm -f build-arch-stamp
 	[ ! -f Makefile ] || $(MAKE) distclean
 	find . -type f -and -name \*~ -or -name .\*~ -exec rm -f {} \;
+	rm -rf doc/html
 	dh_clean
 
 install: DH_OPTIONS=
 install: build
 	dh_testdir
 	dh_testroot
-	dh_clean -k
+	dh_prep
 	dh_installdirs
 
 	dh_installdirs --all  $(clc-systems) $(clc-source)
@@ -113,7 +106,7 @@ install: build
 	dh_installdirs -p $(pkg-tests) $(lispdir-tests)
 
 	# Main package
-	dh_install -p $(pkg) $(srcs) $(lispdir-sql)
+	dh_install -p $(pkg) $(srcs-sql) $(lispdir-sql)
 	dh_install -p $(pkg) clsql.asd $(clc-clsql)
 	dh_install -p $(pkg) debian/clsql-init.lisp etc
 
@@ -144,94 +137,34 @@ install: build
 	dh_install -p $(pkg-tests) $(srcs-tests) $(lispdir-tests)
 	dh_install -p $(pkg-tests) clsql-tests.asd $(clc-tests)
 
-	# CLC Systems
-	dh_link -p $(pkg) $(clc-clsql)/clsql.asd $(clc-systems)/clsql.asd
-	dh_link -p $(pkg-uffi) $(clc-uffi)/clsql-uffi.asd $(clc-systems)/clsql-uffi.asd
-	dh_link -p $(pkg-mysql) $(clc-mysql)/clsql-mysql.asd $(clc-systems)/clsql-mysql.asd
-	dh_link -p $(pkg-pg) $(clc-pg)/clsql-postgresql.asd $(clc-systems)/clsql-postgresql.asd
-	dh_link -p $(pkg-pg-socket) $(clc-pg-socket)/clsql-postgresql-socket.asd $(clc-systems)/clsql-postgresql-socket.asd
-	dh_link -p $(pkg-aodbc) $(clc-aodbc)/clsql-aodbc.asd $(clc-systems)/clsql-aodbc.asd
-	dh_link -p $(pkg-odbc) $(clc-odbc)/clsql-odbc.asd $(clc-systems)/clsql-odbc.asd
-	dh_link -p $(pkg-sqlite) $(clc-sqlite)/clsql-sqlite.asd $(clc-systems)/clsql-sqlite.asd
-	dh_link -p $(pkg-sqlite3) $(clc-sqlite3)/clsql-sqlite3.asd $(clc-systems)/clsql-sqlite3.asd
-	dh_link -p $(pkg-oracle) $(clc-oracle)/clsql-oracle.asd $(clc-systems)/clsql-oracle.asd
-	dh_link -p $(pkg-tests) $(clc-tests)/clsql-tests.asd $(clc-systems)/clsql-tests.asd
-
 	# Documentation
 	rm -rf doc/html
 	(cd doc; tar xzf html.tar.gz; cd ..)
-	dh_install -p $(pkg) doc/html $(doc-dir)
-	rm -rf doc/html
-	cp doc/clsql.pdf doc/cl-sql.pdf
-	rm -f doc/cl-sql.pdf.gz
-	gzip doc/cl-sql.pdf
-	dh_install -p $(pkg) doc/cl-sql.pdf.gz $(doc-dir)
-	rm -f doc/cl-sql.pdf.gz
 
-	set -e ;\
-	for p in $(all-pkgs); do \
-                echo "processing maintainer scripts for $$p" ;\
-		l=`echo $$p | sed -e "s/^cl-/cl/;"` ;\
-		sed -e "s/%%/$$l/;" debian/preinst.template > debian/$$p.preinst ;\
-		sed -e "s/%%/$$l/;" debian/prerm.template > debian/$$p.prerm ;\
-		sed -e "s/%%/$$l/;" debian/postinst.template > debian/$$p.postinst ;\
-		chown root.root debian/$$p.prerm debian/$$p.prerm debian/$$p.preinst; \
-		chmod +x debian/$$p.prerm debian/$$p.prerm debian/$$p.preinst; \
-	done
-
-
-binary-indep: build install
+binary-indep: install
 	dh_testdir -i
 	dh_testroot -i
-#	dh_installdebconf -i
-	dh_installdocs -i
-	dh_installexamples -i examples/*
-	dh_installmenu -i
-#	dh_installlogrotate -i
-#	dh_installemacsen -i
-#	dh_installpam -i
-#	dh_installmime -i
-#	dh_installinit -i
-	dh_installcron -i
-#	dh_installman -i
-	dh_installinfo -i
-#	dh_undocumented -i
-	dh_installchangelogs ChangeLog -i
-	dh_link -i
+	dh_installdocs -i -p $(pkg) doc/html doc/clsql.pdf
+	dh_installexamples -i -p $(pkg) examples/*
+	dh_installchangelogs -i
+	dh_lisp -i
 	dh_compress -i
 	dh_fixperms -i
-#	dh_makeshlibs -i
 	dh_installdeb -i
-#	dh_perl -i
 	dh_gencontrol -i
 	dh_md5sums -i
 	dh_builddeb -i
 
-# Build architecture-dependent files here.
-binary-arch: build install
+binary-arch: install
 	dh_testdir -a
 	dh_testroot -a
-#	dh_installdebconf -a
 	dh_installdocs -a
-	dh_installexamples -a
-	dh_installmenu -a
-#	dh_installlogrotate -a
-#	dh_installemacsen -a
-#	dh_installpam -a
-#	dh_installmime -a
-#	dh_installinit -a
-	dh_installcron -a
-#	dh_installman -a
-	dh_installinfo -a
-#	dh_undocumented -a
-	dh_installchangelogs ChangeLog -a
+	dh_installchangelogs -a
+	dh_lisp -a
 	dh_strip -a
-	dh_link -a
 	dh_compress -a
 	dh_fixperms -a
-#	dh_makeslhibs -a
 	dh_installdeb -a
-#	dh_perl -a
 	dh_shlibdeps -a
 	dh_gencontrol -a
 	dh_md5sums -a
@@ -239,4 +172,5 @@ binary-arch: build install
 
 binary: binary-indep binary-arch
 
-.PHONY: build clean binary-indep binary-arch binary install configure
+
+.PHONY: build clean binary-indep binary-arch binary install

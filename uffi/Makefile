@@ -6,8 +6,6 @@
 #  Programer:    Kevin M. Rosenberg
 #  Date Started: Mar 2002
 #
-#  CVS Id:   $Id$
-#
 # This file, part of CLSQL, is Copyright (c) 2002-2006 by Kevin M. Rosenberg
 #
 # CLSQL users are granted the rights to distribute and use this software
@@ -22,6 +20,7 @@ base=clsql_uffi
 source=$(base).c
 object=$(base).o
 shared_lib=$(base).so
+shared64_lib=$(base)64.so
 
 .PHONY: all
 all: $(shared_lib)
@@ -44,19 +43,24 @@ else
 	gcc -c $(source) -o $(object)
 	ld -shared -soname=$(base) $(LDFLAGS) $(object) -o $(shared_lib)
       else
-	gcc -fPIC -DPIC -c $(source) -o $(object)
-	ld -shared -soname=$(base) -lc $(object) -o $(shared_lib)
+        ifneq ($(OS_LINUX64),0)
+	  gcc -fPIC -DPIC -c $(source) -o $(object)
+	  ld -shared -soname=$(base) -lc $(object) -o $(shared64_lib)
+	  rm -f $(object)
+	  @echo "Ensure that you have multiarch i386 build tools if you want to build 32-bit library"
+	  -gcc -m32 -fPIC -DPIC -c $(source) -o $(object)
+	  -ld -melf_i386 -shared -soname=$(base) -lc $(object) -o $(shared_lib)
+        else
+	  gcc -fPIC -DPIC -c $(source) -o $(object)
+	  ld -shared -soname=$(base) -lc $(object) -o $(shared_lib)
+        endif
       endif
     endif
   endif
 endif
-	rm $(object)
+	rm -f $(object)
 
 
 .PHONY: distclean
 distclean: clean
 	rm -f $(base).dylib $(base).dylib $(base).so $(base).o
-
-
-
-

@@ -15,7 +15,7 @@
  * (http://opensource.franz.com/preamble.html), also known as the LLGPL.
  ***************************************************************************/
 
-#ifdef WIN32
+#if defined(WIN32)||defined(WIN64)
 #include <windows.h>
 
 BOOL WINAPI DllEntryPoint(HINSTANCE hinstdll, DWORD fdwReason,
@@ -87,7 +87,15 @@ clsql_mysql_insert_id (MYSQL* mysql, unsigned int* pHigh32)
 /* Accessor functions to hide the differences across MySQL versions */
 
 DLLEXPORT
-short int
+unsigned int
+clsql_mysql_field_flags (MYSQL_FIELD* field)
+{
+  return field->flags;
+}
+
+
+DLLEXPORT
+unsigned int
 clsql_mysql_field_type (MYSQL_FIELD* field)
 {
   return field->type;
@@ -139,7 +147,6 @@ bind_param (MYSQL_BIND bind[], unsigned int n, unsigned long length, unsigned sh
 
 
 DLLEXPORT
-DLLEXPORT
 unsigned int
 clsql_mysql_stmt_affected_rows (MYSQL_STMT* stmt, unsigned int* pHigh32)
 {
@@ -147,7 +154,6 @@ clsql_mysql_stmt_affected_rows (MYSQL_STMT* stmt, unsigned int* pHigh32)
   *pHigh32 = upper_32bits(nAffected);
   return lower_32bits(nAffected);
 }
-
 
 #endif
 

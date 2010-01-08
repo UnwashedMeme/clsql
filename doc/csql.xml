@@ -292,6 +292,17 @@ mapped into a database).  They would be defined as follows:
   <symbol>:base-table</symbol> option specifies what the table name
   for the view class will be when it is mapped into the database.
 </para>
+
+<para>
+  Another class option is <symbol>:normalisedp</symbol>, which signals
+  &clsql; to use a normalised schema for the mapping from slots to
+  &sql; columns. By default &clsql; includes all the slots of a parent
+  class that map to &sql; columns into the child class. This option
+  tells &clsql; to normalise the schema, so that a join is done on the
+  primary keys of the concerned tables to get a complete column set
+  for the classes. For more information, see <link linkend="def-view-class">
+  <function>def-view-class</function></link>.
+</para>
   </sect1>
 
 <sect1 id="csql-rel">
@@ -452,6 +463,24 @@ is a list of keywords and values.  The available keywords are:
 <para>
 There are other :join-info options available in &clsql;, but we will
 save those till we get to the many-to-many relation examples.
+</para>
+
+
+    <title>Object Oriented Class Relations</title>
+
+<para>
+&clsql; provides an Object Oriented Data Definition Language, which
+provides a mapping from &sql; tables to CLOS objects. By default class
+inheritance is handled by including all the columns from parent
+classes into the child class. This means your database schema becomes
+very much denormalised. The class option <symbol>:normalisedp</symbol>
+can be used to disable the default behaviour and have &clsql;
+normalise the database schemas of inherited classes.
+</para>
+
+<para>
+See <link linkend="def-view-class"><function>def-view-class</function></link>
+for more information.
 </para>
 
 </sect1>

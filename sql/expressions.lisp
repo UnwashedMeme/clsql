@@ -114,7 +114,7 @@
     (write-string
      (etypecase name
        (string name)
-       (symbol (symbol-name name) database))
+       (symbol (symbol-name name)))
      *sql-stream*))
   t)
 

@@ -1,3 +1,86 @@
+cl-sql (4.2.1-1) unstable; urgency=low
+
+  * New upstream
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Thu, 07 Jan 2010 11:03:33 -0700
+
+cl-sql (4.2.0-1) unstable; urgency=low
+
+  * New upstream
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Thu, 10 Dec 2009 17:03:31 -0700
+
+cl-sql (4.1.2-1) unstable; urgency=low
+
+  * New upstream
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Thu, 12 Nov 2009 00:41:04 -0700
+
+cl-sql (4.1.1-1) unstable; urgency=low
+
+  * New upstream
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Fri, 04 Sep 2009 13:02:14 -0600
+
+cl-sql (4.1.0-1) unstable; urgency=low
+
+  * New upstream
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Mon, 31 Aug 2009 22:43:56 -0600
+
+cl-sql (4.0.6-1) unstable; urgency=low
+
+  * New upstream
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Mon, 31 Aug 2009 14:36:30 -0600
+
+cl-sql (4.0.5-5) unstable; urgency=low
+
+  * debian/rules: Fix bug introduced by change to dh-lisp (closes:540816)
+  
+ -- Kevin M. Rosenberg <kmr@debian.org>  Mon, 10 Aug 2009 10:05:16 -0600
+
+cl-sql (4.0.5-4) unstable; urgency=low
+
+  * debian/control:
+    - Add Vcs-Browser field
+    - Convert to dh-lisp
+  * debian/rules:
+    - Simplify install rules utilizing more debhelper functions
+    - Convert to dh-lisp
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Tue, 04 Aug 2009 02:21:14 -0600
+
+cl-sql (4.0.5-3) unstable; urgency=low
+
+  * control: Update debhelper compat to 7, add Homepage and Vgs-Git
+  fields.
+  * rules: update to DH 7 compatible
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Sun, 02 Aug 2009 00:21:45 -0600
+
+cl-sql (4.0.5-2) unstable; urgency=low
+
+  * Change section from devel to lisp
+  * Update debhelper compat version to 5
+  
+ -- Kevin M. Rosenberg <kmr@debian.org>  Sun, 26 Jul 2009 20:28:14 -0600
+
+cl-sql (4.0.5-1) unstable; urgency=low
+
+  * New upstream version
+  * Change build dependency to be independent of libmysqlclient version
+  (closes:538459)
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Sun, 26 Jul 2009 17:30:19 -0600
+
+cl-sql (4.0.4-1) unstable; urgency=low
+
+  * Update Oracle FFI based on changes in CLSQL. Thanks to Paul
+  Metcalfe, Liam Healy, and Alan Salewski (closes:481029)
+
+ -- Kevin M. Rosenberg <kmr@debian.org>  Sat, 07 Mar 2009 13:32:00 -0700
+
 cl-sql (4.0.3-1) unstable; urgency=low
 
   * New upstream

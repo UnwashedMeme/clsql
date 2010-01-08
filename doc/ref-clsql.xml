@@ -1510,7 +1510,7 @@ error: 'Access denied for user: 'root@localhost' (Using password: YES)'
 =>
 Error: While trying to access database localhost/test2/root
   using database-type POSTGRESQL:
-  Error database-destory failed: dropdb: database removal failed: ERROR:  database "test2" does not exist
+  Error database-destroy failed: dropdb: database removal failed: ERROR:  database "test2" does not exist
   has occurred.
   [condition type: CLSQL-ACCESS-ERROR]
 	</screen>

@@ -9,7 +9,7 @@
 #
 #  CVS Id:   $Id: Makefile.msvc,v 1.1 2002/09/18 07:43:40 kevin Exp $
 #
-# This file, part of CLSQL, is Copyright (c) 2002-2004 by Kevin M. Rosenberg
+# This file, part of CLSQL, is Copyright (c) 2002-2009 by Kevin M. Rosenberg
 #
 # CLSQL users are granted the rights to distribute and use this software
 # as governed by the terms of the Lisp Lesser GNU Public License
@@ -20,23 +20,23 @@
 BASE=clsql_mysql
 
 # Set to the directory where you have installed mysql's library
-MYSQL_DIR=c:/mysql
-
-MYSQL_LIB_DIR=$(MYSQL_DIR)/lib/opt
-MYSQL_LIB_FILE=$(MYSQL_LIB_DIR)/Libmysql.lib
-MYSQL_INCLUDE=$(MYSQL_DIR)/include
+MYSQL_DIR=c:/Program Files/MySQL/MySQL Server 5.1/
+MYSQL_LIB_FILE=$(MYSQL_DIR)lib\opt\mysqlclient.lib
+MYSQL_INCLUDE=$(MYSQL_DIR)include
 
 # Nothing to configure beyond here
 
 SRC=$(BASE).c
 OBJ=$(BASE).obj
 DLL=$(BASE).dll
+LIB=$(BASE).lib
+
 
 $(DLL): $(SRC) $(MYSQL_LIB_FILE)
-	cl /MD /LD -D_MT /DWIN32=1 /D__LCC__=1 /I$(MYSQL_INCLUDE) $(SRC) $(MYSQL_LIB_FILE)
+	echo "LD"
+	echo $(MYSQL_LIB_FILE)
+	cl /MD /LD -D_MT /DWIN32=1 /D__LCC__=1 /I"$(MYSQL_INCLUDE)" $(SRC) $(MYSQL_LIB_FILE)
         del $(OBJ) $(BASE).exp
 
 clean:
         del /q $(DLL)
-
-

@@ -17,7 +17,7 @@
 
 (defclass standard-db-object ()
   ((view-database :initform nil :initarg :view-database :reader view-database
-    :db-kind :virtual))
+                  :db-kind :virtual))
   (:metaclass standard-db-class)
   (:documentation "Superclass for all CLSQL View Classes."))
 
@@ -38,13 +38,23 @@
     (let* ((slot-name (%svuc-slot-name slot-def))
            (slot-object (%svuc-slot-object slot-def class))
            (slot-kind (view-class-slot-db-kind slot-object)))
-      (when (and (eql slot-kind :join)
-                 (not (slot-boundp instance slot-name)))
-        (let ((*db-deserializing* t))
-          (if (view-database instance)
-              (setf (slot-value instance slot-name)
-                    (fault-join-slot class instance slot-object))
-              (setf (slot-value instance slot-name) nil))))))
+      (if (and (eql slot-kind :join)
+               (not (slot-boundp instance slot-name)))
+          (let ((*db-deserializing* t))
+            (if (view-database instance)
+                (setf (slot-value instance slot-name)
+                      (fault-join-slot class instance slot-object))
+                (setf (slot-value instance slot-name) nil)))
+          (when (and (normalisedp class)
+                     (not (member slot-name
+                                  (mapcar #'(lambda (esd) (slot-definition-name esd))
+                                          (ordered-class-direct-slots class))))
+                     (not (slot-boundp instance slot-name)))
+            (let ((*db-deserializing* t))
+              (if (view-database instance)
+                  (setf (slot-value instance slot-name)
+                        (fault-join-normalised-slot class instance slot-object))
+                  (setf (slot-value instance slot-name) nil)))))))
   (call-next-method))
 
 (defmethod (setf slot-value-using-class) (new-value (class standard-db-class)
@@ -54,7 +64,7 @@
          (slot-object (%svuc-slot-object slot-def class))
          (slot-kind (view-class-slot-db-kind slot-object)))
     (prog1
-      (call-next-method)
+        (call-next-method)
       (when (and *db-auto-sync*
                  (not *db-initializing*)
                  (not *db-deserializing*)
@@ -62,7 +72,7 @@
         (update-record-from-slot instance slot-name)))))
 
 (defmethod initialize-instance ((object standard-db-object)
-                                        &rest all-keys &key &allow-other-keys)
+                                &rest all-keys &key &allow-other-keys)
   (declare (ignore all-keys))
   (let ((*db-initializing* t))
     (call-next-method)
@@ -81,26 +91,36 @@
 in DATABASE which defaults to *DEFAULT-DATABASE*."
   (let ((tclass (find-class view-class-name)))
     (if tclass
-        (let ((*default-database* database))
+        (let ((*default-database* database)
+              (pclass (car (class-direct-superclasses tclass))))
+          (when (and (normalisedp tclass) (not (table-exists-p (view-table pclass))))
+            (create-view-from-class (class-name pclass)
+                                    :database database :transactions transactions))
           (%install-class tclass database :transactions transactions))
         (error "Class ~s not found." view-class-name)))
   (values))
 
+
 (defmethod %install-class ((self standard-db-class) database
                            &key (transactions t))
-  (let ((schemadef '()))
-    (dolist (slotdef (ordered-class-slots self))
+  (let ((schemadef '())
+        (ordered-slots (if (normalisedp self)
+                           (ordered-class-direct-slots self)
+                           (ordered-class-slots self))))
+    (dolist (slotdef ordered-slots)
       (let ((res (database-generate-column-definition (class-name self)
                                                       slotdef database)))
         (when res
           (push res schemadef))))
-    (unless schemadef
-      (error "Class ~s has no :base slots" self))
-    (create-table (sql-expression :table (view-table self)) (nreverse schemadef)
-                  :database database
-                  :transactions transactions
-                  :constraints (database-pkey-constraint self database))
-    (push self (database-view-classes database)))
+    (if (not schemadef)
+        (unless (normalisedp self)
+          (error "Class ~s has no :base slots" self))
+        (progn
+          (create-table (sql-expression :table (view-table self)) (nreverse schemadef)
+                        :database database
+                        :transactions transactions
+                        :constraints (database-pkey-constraint self database))
+          (push self (database-view-classes database)))))
   t)
 
 (defmethod database-pkey-constraint ((class standard-db-class) database)
@@ -133,7 +153,7 @@ in DATABASE which defaults to *DEFAULT-DATABASE*."
 ;;
 
 (defun drop-view-from-class (view-class-name &key (database *default-database*)
-                                             (owner nil))
+                             (owner nil))
   "Removes a table defined by the View Class VIEW-CLASS-NAME from
 DATABASE which defaults to *DEFAULT-DATABASE*."
   (let ((tclass (find-class view-class-name)))
@@ -144,8 +164,8 @@ DATABASE which defaults to *DEFAULT-DATABASE*."
   (values))
 
 (defun %uninstall-class (self &key
-                              (database *default-database*)
-                              (owner nil))
+                         (database *default-database*)
+                         (owner nil))
   (drop-table (sql-expression :table (view-table self))
               :if-does-not-exist :ignore
               :database database
@@ -213,12 +233,12 @@ defaults to NIL. The :db-constraints slot option is a string
 representing an SQL table constraint expression or a list of such
 strings."
   `(progn
-    (defclass ,class ,supers ,slots
-      ,@(if (find :metaclass `,cl-options :key #'car)
-            `,cl-options
-            (cons '(:metaclass clsql-sys::standard-db-class) `,cl-options)))
-    (finalize-inheritance (find-class ',class))
-    (find-class ',class)))
+     (defclass ,class ,supers ,slots
+       ,@(if (find :metaclass `,cl-options :key #'car)
+             `,cl-options
+             (cons '(:metaclass clsql-sys::standard-db-class) `,cl-options)))
+     (finalize-inheritance (find-class ',class))
+     (find-class ',class)))
 
 (defun keyslots-for-class (class)
   (slot-value class 'key-slots))

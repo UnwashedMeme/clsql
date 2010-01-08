@@ -1,8 +1,6 @@
 ;;;; -*- Mode: LISP; Syntax: ANSI-Common-Lisp; Base: 10 -*-
 ;;;; *************************************************************************
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; CLSQL metaclass for standard-db-objects created in the OODDL.
 ;;;;
 ;;;; This file is part of CLSQL.
@@ -47,6 +45,9 @@
     :initform nil)
    (key-slots
     :accessor key-slots
+    :initform nil)
+   (normalisedp
+    :accessor normalisedp
     :initform nil)
    (class-qualifier
     :accessor view-class-qualifier
@@ -111,10 +112,20 @@
                                           base-table))
                                  (class-name class)))))
 
+(defmethod ordered-class-direct-slots ((self standard-db-class))
+  (let ((direct-slot-names
+         (mapcar #'slot-definition-name (class-direct-slots self)))
+        (ordered-direct-class-slots '()))
+    (dolist (slot (ordered-class-slots self))
+      (let ((slot-name (slot-definition-name slot)))
+        (when (find slot-name direct-slot-names)
+          (push slot ordered-direct-class-slots))))
+    (nreverse ordered-direct-class-slots)))
+
 (defmethod initialize-instance :around ((class standard-db-class)
                                         &rest all-keys
                                         &key direct-superclasses base-table
-                                        qualifier
+                                        qualifier normalisedp
                                         &allow-other-keys)
   (let ((root-class (find-class 'standard-db-object nil))
         (vmc 'standard-db-class))
@@ -131,17 +142,19 @@
                    (remove-keyword-arg all-keys :direct-superclasses)))
         (call-next-method))
     (set-view-table-slot class base-table)
+    (setf (normalisedp class) (car normalisedp))
     (register-metaclass class (nth (1+ (position :direct-slots all-keys))
                                    all-keys))))
 
 (defmethod reinitialize-instance :around ((class standard-db-class)
                                           &rest all-keys
-                                          &key base-table
+                                          &key base-table normalisedp
                                           direct-superclasses qualifier
                                           &allow-other-keys)
   (let ((root-class (find-class 'standard-db-object nil))
         (vmc 'standard-db-class))
     (set-view-table-slot class base-table)
+    (setf (normalisedp class) (car normalisedp))
     (setf (view-class-qualifier class)
           (car qualifier))
     (if (and root-class (not (equal class root-class)))
@@ -196,14 +209,18 @@
     (setf (key-slots class) (remove-if-not (lambda (slot)
                                              (eql (slot-value slot 'db-kind)
                                                   :key))
-                                           (ordered-class-slots class)))))
+                                           (if (normalisedp class)
+                                               (ordered-class-direct-slots class)
+                                               (ordered-class-slots class))))))
 
 #+(or sbcl allegro)
 (defmethod finalize-inheritance :after ((class standard-db-class))
   (setf (key-slots class) (remove-if-not (lambda (slot)
                                            (eql (slot-value slot 'db-kind)
                                                 :key))
-                                         (ordered-class-slots class))))
+                                         (if (normalisedp class)
+                                             (ordered-class-direct-slots class)
+                                             (ordered-class-slots class)))))
 
 ;; return the deepest view-class ancestor for a given view class
 
@@ -427,29 +444,17 @@ implementations."
       (car list)
       list))
 
-(defmethod initialize-instance :around ((obj view-class-direct-slot-definition)
-                                        &rest initargs)
-  (do* ((parsed (list obj))
-        (name (first initargs) (first initargs))
-        (val (second initargs) (second initargs))
-        (type nil)
-        (db-constraints nil))
-      ((null initargs)
-       (setq parsed
-             (append parsed
-                     (list 'specified-type type
-                           :type (compute-lisp-type-from-specified-type
-                                  type db-constraints))))
-       (apply #'call-next-method parsed))
-    (case name
-      (:db-constraints
-       (setq db-constraints val)
-       (setq parsed (append parsed (list name val))))
-      (:type
-       (setq type val))
-      (t
-       (setq parsed (append parsed (list name val)))))
-    (setq initargs (cddr initargs))))
+(defmethod initialize-instance :around
+    ((obj view-class-direct-slot-definition)
+     &rest initargs &key db-constraints db-kind type &allow-other-keys)
+  (when (and (not db-kind) (member :primary-key (listify db-constraints)))
+    (warn "Slot ~S constrained to be :primary-key, but not marked as :db-kind :key"
+          (slot-definition-name obj)))
+  (apply #'call-next-method obj
+         'specified-type type
+         :type (compute-lisp-type-from-specified-type
+                type db-constraints)
+         initargs))
 
 (defmethod compute-effective-slot-definition ((class standard-db-class)
                                               #+kmr-normal-cesd slot-name

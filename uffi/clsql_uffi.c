@@ -15,7 +15,7 @@
  * (http://opensource.franz.com/preamble.html), also known as the LLGPL.
  ***************************************************************************/
 
-#ifdef WIN32
+#if defined(WIN32)||defined(WIN64)
 #include <windows.h>
 
 BOOL WINAPI DllEntryPoint(HINSTANCE hinstdll, DWORD fdwReason,
@@ -41,7 +41,7 @@ DLLEXPORT
 unsigned int
 atol64 (const unsigned char* str, unsigned int* pHigh32)
 {
-#ifdef WIN32
+#if defined(WIN32)||defined(WIN64)
   __int64 result = 0;
 #else
   long long result = 0;

@@ -1,8 +1,6 @@
 ;;;; -*- Mode: LISP; Syntax: ANSI-Common-Lisp; Base: 10 -*-
 ;;;; *************************************************************************
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; Transaction support
 ;;;;
 ;;;; This file is part of CLSQL.
@@ -60,12 +58,14 @@ is called on DATABASE which defaults to *DEFAULT-DATABASE*."
 (defmethod database-commit-transaction ((database database))
   (with-slots (transaction transaction-level autocommit) database
     (if (plusp transaction-level)
-        (when (zerop (decf transaction-level))
-          (case (database-underlying-type database)
-            (:mssql (execute-command "COMMIT TRANSACTION" :database database))
-            (t (execute-command "COMMIT" :database database)))
-          (setf autocommit (previous-autocommit transaction))
-          (map nil #'funcall (commit-hooks transaction)))
+        (if (zerop (decf transaction-level))
+            (progn
+              (case (database-underlying-type database)
+                (:mssql (execute-command "COMMIT TRANSACTION" :database database))
+                (t (execute-command "COMMIT" :database database)))
+              (setf autocommit (previous-autocommit transaction))
+              (map nil #'funcall (commit-hooks transaction)))
+            (setf (transaction-status (transaction database)) nil))
         (warn 'sql-warning
               :message
               (format nil "Cannot commit transaction against ~A because there is no transaction in progress."

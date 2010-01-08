@@ -1,8 +1,6 @@
 ;;;; -*- Mode: LISP; Syntax: ANSI-Common-Lisp; Base: 10 -*-
 ;;;; *************************************************************************
 ;;;;
-;;;; $Id$
-;;;;
 ;;;; The CLSQL Functional Data Manipulation Language (FDML).
 ;;;;
 ;;;; This file is part of CLSQL.
@@ -212,28 +210,28 @@ types are automatically computed for each field."
         (columns (gensym "COLUMNS-"))
         (row (gensym "ROW-"))
         (db (gensym "DB-")))
-    `(let ((,qe ,query-expression))
+    `(let ((,qe ,query-expression)
+           (,db ,database))
       (typecase ,qe
         (sql-object-query
-         (dolist (,row (query ,qe))
+         (dolist (,row (query ,qe :database ,db))
            (destructuring-bind ,args
                ,row
              ,@body)))
         (t
          ;; Functional query
-         (let ((,db ,database))
-           (multiple-value-bind (,result-set ,columns)
-               (database-query-result-set ,qe ,db
-                                          :full-set nil
+         (multiple-value-bind (,result-set ,columns)
+             (database-query-result-set ,qe ,db
+                                        :full-set nil
                                           :result-types ,result-types)
-             (when ,result-set
-               (unwind-protect
-                    (do ((,row (make-list ,columns)))
-                        ((not (database-store-next-row ,result-set ,db ,row))
-                         nil)
-                      (destructuring-bind ,args ,row
-                        ,@body))
-                 (database-dump-result-set ,result-set ,db))))))))))
+           (when ,result-set
+             (unwind-protect
+                  (do ((,row (make-list ,columns)))
+                      ((not (database-store-next-row ,result-set ,db ,row))
+                       nil)
+                    (destructuring-bind ,args ,row
+                      ,@body))
+               (database-dump-result-set ,result-set ,db)))))))))
 
 (defun map-query (output-type-spec function query-expression
                   &key (database *default-database*)

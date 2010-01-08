@@ -5,9 +5,9 @@
 %myents;
 ]>
 
-<!-- Object Oriented Data Definition Language --> 
-<reference id="ref-ooddl"> 
-  <title>Object Oriented Data Definition Language (OODDL)</title> 
+<!-- Object Oriented Data Definition Language -->
+<reference id="ref-ooddl">
+  <title>Object Oriented Data Definition Language (OODDL)</title>
   <partintro>
     <para>
       The Object Oriented Data Definition Language (OODDL) provides
@@ -15,7 +15,7 @@
       (CLOS) objects.  SQL tables are mapped to CLOS objects with the
       SQL columns being mapped to slots of the CLOS object.
     </para>
-    <para> 
+    <para>
       The mapping between SQL tables and CLOS objects is defined with
       the macro <link
       linkend="def-view-class"><function>def-view-class</function></link>. SQL
@@ -59,11 +59,11 @@
     <refsect1>
       <title>Slots</title>
       <para>
-	<simplelist> 
+	<simplelist>
 	  <member>slot VIEW-DATABASE is of type (OR NULL DATABASE)
 	  which stores the associated database for the
 	  instance.</member>
-	</simplelist> 
+	</simplelist>
       </para>
     </refsect1>
   </refentry>
@@ -78,14 +78,14 @@
       <title>Value Type</title>
       <para>
 	Fixnum
-      </para> 
+      </para>
     </refsect1>
     <refsect1>
       <title>Initial Value</title>
       <para><parameter>255</parameter></para>
     </refsect1>
     <refsect1>
-      <title>Description</title> 
+      <title>Description</title>
       <para>
 	If a slot of a class defined by
 	<function>def-view-class</function> is of the type
@@ -105,9 +105,9 @@
      (c :type varchar))))
 => #&lt;Standard-Db-Class S80 {480A431D}>
 
-(create-view-from-class 's80)   
-=> 
-(table-exists-p [s80]) 
+(create-view-from-class 's80)
+=>
+(table-exists-p [s80])
 => T
       </screen>
       <para>
@@ -193,7 +193,7 @@
 (def-view-class foo () ((a :type (string 80))))
 => #&lt;Standard-Db-Class FOO {4807F7CD}>
 (create-view-from-class 'foo)
-=> 
+=>
 (list-tables)
 => ("FOO")
       </screen>
@@ -453,7 +453,7 @@
 		wide. [not supported by all database backends]
 	      </member>
 	      <member>
-		<parameter>bigint</parameter> - An integer column 
+		<parameter>bigint</parameter> - An integer column
 		64-bits wide. [not supported by all database backends]
 	      </member>
 	      <member>
@@ -495,7 +495,7 @@
 	      </member>
 	      <member>
 		<parameter>keyword</parameter> - stores a keyword
-	      </member>	
+	      </member>
 	      <member><parameter>symbol</parameter> - stores a symbol</member>
 	      <member>
 		<parameter>list</parameter> - stores a list by writing
@@ -508,7 +508,7 @@
 	      similarly to <parameter>list</parameter></member>
 	    </simplelist>
 	  </para>
-	  
+
 	</listitem>
 	<listitem>
 	  <para>
@@ -587,6 +587,16 @@
 	      are converted to underscore characters.
 	    </para>
 	  </listitem>
+	  <listitem>
+	    <para>
+	      <parameter>:normalisedp</parameter> - specifies whether
+          this class uses normalised inheritance from parent classes.
+          Defaults to nil, i.e. non-normalised schemas. When true,
+          SQL database tables that map to this class and parent
+          classes are joined on their primary keys to get the full
+          set of database columns for this class.
+	    </para>
+	  </listitem>
 	</itemizedlist>
       </para>
     </refsect1>
@@ -606,6 +616,107 @@
 	this class.
       </para>
 
+      <title>Normalised inheritance schemas</title>
+      <para>
+    Specifying that <symbol>:normalisedp</symbol> is <symbol>T</symbol>
+    tells &clsql; to normalise the database schema for inheritance.
+    What this means is shown in the examples below.
+      </para>
+
+      <para>
+    With <symbol>:normalisedp</symbol> equal to <symbol>NIL</symbol>
+    (the default) the class inheritance would result in the following:
+      </para>
+      <screen>
+(def-view-class node ()
+  ((title :accessor title :initarg :title :type (varchar 240))))
+
+SQL table NODE:
++-------+--------------+------+-----+---------+-------+
+| Field | Type         | Null | Key | Default | Extra |
++-------+--------------+------+-----+---------+-------+
+| TITLE | varchar(240) | YES  |     | NULL    |       |
++-------+--------------+------+-----+---------+-------+
+
+(def-view-class user (node)
+  ((user-id :accessor user-id :initarg :user-id
+            :type integer :db-kind :key :db-constraints (:not-null))
+   (nick :accessor nick :initarg :nick :type (varchar 64))))
+
+SQL table USER:
++---------+--------------+------+-----+---------+-------+
+| Field   | Type         | Null | Key | Default | Extra |
++---------+--------------+------+-----+---------+-------+
+| USER_ID | int(11)      | NO   | PRI |         |       |
+| NICK    | varchar(64)  | YES  |     | NULL    |       |
+| TITLE   | varchar(240) | YES  |     | NULL    |       |
++---------+--------------+------+-----+---------+-------+
+      </screen>
+
+      <para>
+    Using <symbol>:normalisedp</symbol> <symbol>T</symbol>, both
+    view-classes need a primary key to join them on:
+      </para>
+      <screen>
+(def-view-class node ()
+  ((node-id :accessor node-id :initarg :node-id
+            :type integer :db-kind :key
+            :db-constraints (:not-null))
+   (title :accessor title :initarg :title :type (varchar 240))))
+
+SQL table NODE:
++---------+--------------+------+-----+---------+-------+
+| Field   | Type         | Null | Key | Default | Extra |
++---------+--------------+------+-----+---------+-------+
+| NODE_ID | int(11)      | NO   | PRI |         |       |
+| TITLE   | varchar(240) | YES  |     | NULL    |       |
++---------+--------------+------+-----+---------+-------+
+
+(def-view-class user (node)
+  ((user-id :accessor user-id :initarg :user-id
+            :type integer :db-kind :key :db-constraints (:not-null))
+   (nick :accessor nick :initarg :nick :type (varchar 64)))
+  (:normalisedp t))
+
+SQL table USER:
++---------+-------------+------+-----+---------+-------+
+| Field   | Type        | Null | Key | Default | Extra |
++---------+-------------+------+-----+---------+-------+
+| USER_ID | int(11)     | NO   | PRI |         |       |
+| NICK    | varchar(64) | YES  |     | NULL    |       |
++---------+-------------+------+-----+---------+-------+
+      </screen>
+
+      <para>
+        In this second case, all slots of the view-class 'node
+        are also available in view-class 'user, and can be used
+        as one would expect. For example, with the above normalised
+        view-classes 'node and 'user, and SQL tracing turned on:
+      </para>
+      <screen>
+CLSQL> (setq test-user (make-instance 'user :node-id 1 :nick "test-user"
+                                            :title "This is a test user"))
+<![CDATA[#<USER {1003B392E1}>]]>
+
+CLSQL> (update-records-from-instance test-user :database db)
+<![CDATA[
+;; .. => INSERT INTO NODE (NODE_ID,TITLE) VALUES (1,'This is a test user')
+;; .. <= T
+;; .. => INSERT INTO USER (USER_ID,NICK) VALUES (1,'test-user')
+;; .. <= T
+1
+]]>
+
+CLSQL> (node-id test-user)
+1
+
+CLSQL> (title test-user)
+"This is a test user"
+
+CLSQL> (nick test-user)
+"test-user"
+      </screen>
+
     </refsect1>
     <refsect1>
       <title>Examples</title>
@@ -621,7 +732,7 @@
    (birthday :type clsql:wall-time :initarg :birthday)
    (bd-utime :type clsql:universal-time :initarg :bd-utime)
    (hobby :db-kind :virtual :initarg :hobby :initform nil)))
-  
+
 (def-view-class employee (person)
   ((emplid
     :db-kind :key
@@ -853,11 +964,11 @@
       <title>Examples</title>
       <screen>
 (list-tables)
-=> ("FOO" "BAR")	
+=> ("FOO" "BAR")
 (drop-view-from-class 'foo)
-=> 
+=>
 (list-tables)
-=> ("BAR")	
+=> ("BAR")
       </screen>
     </refsect1>
     <refsect1>
@@ -892,7 +1003,7 @@
     <refsect1>
       <title>Notes</title>
       <para>
-        None. 
+        None.
       </para>
     </refsect1>
   </refentry>
@@ -965,7 +1076,7 @@
       <screen>
 (list-classes)
 => (#&lt;clsql-sys::standard-db-class big> #&lt;clsql-sys::standard-db-class employee-address>
-    #&lt;clsql-sys::standard-db-class address> #&lt;clsql-sys::standard-db-class company> 
+    #&lt;clsql-sys::standard-db-class address> #&lt;clsql-sys::standard-db-class company>
     #&lt;clsql-sys::standard-db-class employee>)
 
 (list-classes :test #'(lambda (c) (> (length (symbol-name (class-name c))) 3)))
@@ -1005,10 +1116,10 @@
     <refsect1>
       <title>Notes</title>
       <para>
-        None. 
+        None.
       </para>
     </refsect1>
   </refentry>
 
 
-</reference> 
+</reference>

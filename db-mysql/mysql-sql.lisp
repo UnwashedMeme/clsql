@@ -6,7 +6,7 @@
 ;;;; Purpose:       High-level MySQL interface using UFFI
 ;;;; Date Started:  Feb 2002
 ;;;;
-;;;; $Id$
+;;;; This file, part of CLSQL, is Copyright (c) 2002-2009 by Kevin M. Rosenberg
 ;;;;
 ;;;; CLSQL users are granted the rights to distribute and use this software
 ;;;; as governed by the terms of the Lisp Lesser GNU Public License
@@ -28,56 +28,52 @@
 
 ;;; Field conversion functions
 
-(defun result-field-names (num-fields res-ptr)
-  (declare (fixnum num-fields))
-  (let ((names '())
-        (field-vec (mysql-fetch-fields res-ptr)))
-    (dotimes (i num-fields)
-      (declare (fixnum i))
-      (let* ((field (uffi:deref-array field-vec '(:array mysql-field) i))
-             (name (uffi:convert-from-foreign-string
-                    (uffi:get-slot-value field 'mysql-field 'mysql::name))))
-        (push name names)))
+(defun result-field-names (res-ptr)
+  (let ((names '()))
+    (mysql-field-seek res-ptr 0)
+    (loop
+       (let ((field (mysql-fetch-field res-ptr)))
+         (when (uffi:null-pointer-p field) (return))
+         (push (uffi:convert-from-cstring (clsql-mysql-field-name field)) names)))
     (nreverse names)))
 
-(defun make-type-list-for-auto (num-fields res-ptr)
-  (declare (fixnum num-fields))
-  (let ((new-types '())
-        (field-vec (mysql-fetch-fields res-ptr)))
-    (dotimes (i num-fields)
-      (declare (fixnum i))
-      (let* ((field (uffi:deref-array field-vec '(:array mysql-field) i))
-             (flags (uffi:get-slot-value field 'mysql-field 'mysql::flags))
-             (unsigned (plusp (logand flags 32)))
-             (type (uffi:get-slot-value field 'mysql-field 'type)))
-        (push
-         (case type
-           ((#.mysql-field-types#tiny
-             #.mysql-field-types#short
-             #.mysql-field-types#int24)
-            (if unsigned
-                :uint32
-              :int32))
-           (#.mysql-field-types#long
-            (if unsigned
-                :uint
-              :int))
-            (#.mysql-field-types#longlong
-             (if unsigned
-                 :uint64
-               :int64))
-           ((#.mysql-field-types#double
-             #.mysql-field-types#float
-             #.mysql-field-types#decimal)
-            :double)
-           (otherwise
-            t))
-         new-types)))
+(defun make-type-list-for-auto (res-ptr)
+  (let ((new-types '()))
+    (mysql-field-seek res-ptr 0)
+    (loop
+       (let ((field (mysql-fetch-field res-ptr)))
+         (when (uffi:null-pointer-p field) (return))
+         (let* ((flags (clsql-mysql-field-flags field))
+                (unsigned (plusp (logand flags 32)))
+                (type (clsql-mysql-field-type field)))
+           (push
+            (case type
+              ((#.mysql-field-types#tiny
+                #.mysql-field-types#short
+                #.mysql-field-types#int24)
+               (if unsigned
+                   :uint32
+                   :int32))
+              (#.mysql-field-types#long
+               (if unsigned
+                   :uint
+                   :int))
+              (#.mysql-field-types#longlong
+               (if unsigned
+                   :uint64
+                   :int64))
+              ((#.mysql-field-types#double
+                #.mysql-field-types#float
+                #.mysql-field-types#decimal)
+               :double)
+              (otherwise
+               t))
+            new-types))))
     (nreverse new-types)))
 
-(defun canonicalize-types (types num-fields res-ptr)
+(defun canonicalize-types (types res-ptr)
   (when types
-    (let ((auto-list (make-type-list-for-auto num-fields res-ptr)))
+    (let ((auto-list (make-type-list-for-auto res-ptr)))
       (cond
         ((listp types)
          (canonicalize-type-list types auto-list))
@@ -89,9 +85,11 @@
 (defmethod database-initialize-database-type ((database-type (eql :mysql)))
   t)
 
-(uffi:def-type mysql-mysql-ptr-def (* mysql-mysql))
+;;(uffi:def-type mysql-mysql-ptr-def (* mysql-mysql))
+;;(uffi:def-type mysql-mysql-res-ptr-def (* mysql-mysql-res))
+(uffi:def-type mysql-mysql-ptr-def mysql-mysql)
+(uffi:def-type mysql-mysql-res-ptr-def mysql-mysql-res)
 (uffi:def-type mysql-row-def mysql-row)
-(uffi:def-type mysql-mysql-res-ptr-def (* mysql-mysql-res))
 
 (defclass mysql-database (database)
   ((mysql-ptr :accessor database-mysql-ptr :initarg :mysql-ptr
@@ -194,8 +192,7 @@
                      (let ((num-fields (mysql-num-fields res-ptr)))
                        (declare (fixnum num-fields))
                        (setq result-types (canonicalize-types
-                                    result-types num-fields
-                                    res-ptr))
+                                    result-types res-ptr))
                        (values
                         (loop for row = (mysql-fetch-row res-ptr)
                               for lengths = (mysql-fetch-lengths res-ptr)
@@ -215,7 +212,7 @@
                                        (uffi:deref-array lengths '(:array :unsigned-long)
                                                          i)))))
                         (when field-names
-                          (result-field-names num-fields res-ptr))))
+                          (result-field-names res-ptr))))
                   (mysql-free-result res-ptr))
                 (error 'sql-database-data-error
                        :database database
@@ -269,8 +266,7 @@
                                     :full-set full-set
                                     :types
                                     (canonicalize-types
-                                     result-types num-fields
-                                     res-ptr))))
+                                     result-types res-ptr))))
                   (if full-set
                       (values result-set
                               num-fields
@@ -475,7 +471,8 @@
 
 (defmethod database-list (connection-spec (type (eql :mysql)))
   (destructuring-bind (host name user password &optional port) connection-spec
-    (let ((database (database-connect (list host (or name "mysql") user password port) type)))
+    (let ((database (database-connect (list host (or name "mysql")
+                                            user password port) type)))
       (unwind-protect
            (progn
              (setf (slot-value database 'clsql-sys::state) :open)
@@ -766,4 +763,3 @@
 
 (when (clsql-sys:database-type-library-loaded :mysql)
   (clsql-sys:initialize-database-type :database-type :mysql))
-

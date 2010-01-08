@@ -99,7 +99,8 @@ be taken from this pool."
     (asdf:operate 'asdf:load-op (ensure-keyword
                                  (concatenate 'string
                                               (symbol-name '#:clsql-)
-                                              (symbol-name database-type)))))
+                                              (symbol-name database-type)))
+                  :verbose nil))
 
   (if pool
       (let ((conn (acquire-from-pool connection-spec database-type pool)))
@@ -166,11 +167,12 @@ from a pool it will be released to this pool."
   (let ((database (find-database database :errorp (and database error))))
     (when database
       (if (conn-pool database)
-          (when (release-to-pool database)
-            (setf *connected-databases* (delete database *connected-databases*))
-            (when (eq database *default-database*)
-              (setf *default-database* (car *connected-databases*)))
-            t)
+          (with-process-lock ((conn-pool-lock (conn-pool database)) "Delete from pool")
+            (when (release-to-pool database)
+              (setf *connected-databases* (delete database *connected-databases*))
+              (when (eq database *default-database*)
+                (setf *default-database* (car *connected-databases*)))
+              t))
           (when (database-disconnect database)
             (setf *connected-databases* (delete database *connected-databases*))
             (when (eq database *default-database*)
@@ -279,28 +281,28 @@ database is printed."
           (print-separator total-size))))
     (values)))
 
-(defun create-database (connection-spec &key database-type)
+(defun create-database (connection-spec &key (database-type *default-database-type*))
   "This function creates a database in the database system specified
 by DATABASE-TYPE."
   (when (stringp connection-spec)
     (setq connection-spec (string-to-list-connection-spec connection-spec)))
   (database-create connection-spec database-type))
 
-(defun probe-database (connection-spec &key database-type)
+(defun probe-database (connection-spec &key (database-type *default-database-type*))
   "This function tests for the existence of a database in the database
 system specified by DATABASE-TYPE."
   (when (stringp connection-spec)
     (setq connection-spec (string-to-list-connection-spec connection-spec)))
   (database-probe connection-spec database-type))
 
-(defun destroy-database (connection-spec &key database-type)
+(defun destroy-database (connection-spec &key (database-type *default-database-type*))
   "This function destroys a database in the database system specified
 by DATABASE-TYPE."
   (when (stringp connection-spec)
     (setq connection-spec (string-to-list-connection-spec connection-spec)))
   (database-destroy connection-spec database-type))
 
-(defun list-databases (connection-spec &key database-type)
+(defun list-databases (connection-spec &key (database-type *default-database-type*))
   "This function returns a list of databases existing in the database
 system specified by DATABASE-TYPE."
   (when (stringp connection-spec)

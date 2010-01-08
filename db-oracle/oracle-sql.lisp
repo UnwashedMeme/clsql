@@ -366,9 +366,9 @@ the length of that format.")
 ;; STREAM which has no more data, and QC is not a STREAM, we signal
 ;; DBI-ERROR instead.
 
-(uffi:def-type short-array (:array :short nil))
-(uffi:def-type int-array (:array :int nil))
-(uffi:def-type double-array (:array :double nil))
+(uffi:def-type short-array (* :short))
+(uffi:def-type int-array (* :int))
+(uffi:def-type double-array (* :double))
 (uffi:def-type int-pointer (* :int))
 (uffi:def-type double-pointer (* :double))
 

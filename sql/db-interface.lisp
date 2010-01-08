@@ -129,7 +129,7 @@ returns nil when result-set is finished."))
 (defgeneric database-probe (connection-spec type)
   (:method (spec type)
     (declare (ignore spec))
-    (warn "database-proe not support for database-type ~A." type))
+    (warn "database-probe not support for database-type ~A." type))
   (:documentation
    "Probes for the existence of a database, returns T if database found or NIL
 if not found. May signal an error if unable to communicate with database server."))
@@ -141,17 +141,14 @@ if not found. May signal an error if unable to communicate with database server.
   (:documentation
    "Lists all databases found for TYPE. May signal an error if unable to communicate with database server."))
 
-(defgeneric database-destroy (connection-spec database)
-  (:documentation "Destroys (drops) a database."))
-
 (defgeneric database-truncate (database)
   (:method ((database t))
     (signal-no-database-error database))
   (:documentation "Remove all data from database."))
 
-(defgeneric database-destory (connection-spec type)
+(defgeneric database-destroy (connection-spec type)
   (:documentation
-   "Destroys a database, returns T if successfull or signals an error
+   "Destroys (drops) a database, returns T if successfull or signals an error
 if unable to destory."))
 
 (defgeneric database-create-sequence (name database)

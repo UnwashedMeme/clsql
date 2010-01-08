@@ -1,13 +1,16 @@
 Source: cl-sql
-Section: devel
+Section: lisp
 Priority: extra
 Maintainer: Kevin M. Rosenberg <kmr@debian.org>
-Build-Depends: debhelper (>= 4.0.0), libmysqlclient15-dev, libpq-dev
-Standards-Version: 3.7.3.0
+Build-Depends: dh-lisp, debhelper (>= 7.0.0), libmysqlclient-dev, libpq-dev
+Standards-Version: 3.8.3.0
+Homepage: http://clsql.b9.com/
+Vcs-Git: git://git.b9.com/clsql.git
+Vcs-Browser: http://git.b9.com/?p=clsql.git
 
 Package: cl-sql
 Architecture: all
-Depends: common-lisp-controller (>= 3.37) 
+Depends: ${misc:Depends}
 Recommends: cl-sql-backend
 Description: SQL Interface for Common Lisp
  CLSQL is a Common Lisp interface for multiple SQL databases
@@ -16,7 +19,7 @@ Description: SQL Interface for Common Lisp
 
 Package: cl-sql-uffi
 Architecture: any
-Depends: cl-uffi (>= 1.5.11), cl-sql (= ${source:Version}), ${shlibs:Depends}
+Depends: cl-uffi (>= 1.5.11), cl-sql (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
 Recommends: cl-sql-backend
 Description: Common UFFI functions for CLSQL database backends
  This package provides an interface to several UFFI functions used by multiple
@@ -25,7 +28,7 @@ Description: Common UFFI functions for CLSQL database backends
 
 Package: cl-sql-mysql
 Architecture: any
-Depends: cl-sql (= ${source:Version}), cl-sql-uffi (= ${binary:Version}), ${shlibs:Depends}, libmysqlclient15-dev
+Depends: cl-sql (= ${source:Version}), cl-sql-uffi (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}, libmysqlclient-dev
 Provides: cl-sql-backend
 Description: CLSQL database backend, MySQL
  This package enables you to use the CLSQL data access package
@@ -34,7 +37,7 @@ Description: CLSQL database backend, MySQL
 
 Package: cl-sql-aodbc
 Architecture: all
-Depends: cl-sql (= ${source:Version}), cl-sql-mysql, cl-sql-postgresql
+Depends: cl-sql (= ${source:Version}), cl-sql-mysql, cl-sql-postgresql, ${misc:Depends}
 Provides: cl-sql-backend
 Suggests: acl-pro-installer
 Description: CLSQL database backend, AODBC
@@ -44,7 +47,7 @@ Description: CLSQL database backend, AODBC
 
 Package: cl-sql-odbc
 Architecture: all
-Depends: cl-sql (= ${source:Version}), unixodbc-dev, cl-sql-mysql, cl-sql-postgresql
+Depends: cl-sql (= ${source:Version}), unixodbc-dev, cl-sql-mysql, cl-sql-postgresql, ${misc:Depends}
 Provides: cl-sql-backend
 Suggests: acl-pro-installer
 Description: CLSQL database backend, ODBC
@@ -54,25 +57,26 @@ Description: CLSQL database backend, ODBC
 
 Package: cl-sql-postgresql
 Architecture: all
-Depends: cl-sql (= ${source:Version}), libpq-dev, cl-sql-uffi (>= ${source:Version})
+Depends: cl-sql (= ${source:Version}), libpq-dev, cl-sql-uffi (>= ${source:Version}), ${misc:Depends}
 Provides: cl-sql-backend
-Description: CLSQL database backend, PostgreSQL
+Description: CLSQL database backend, PostgreSQL via library
  This package enables you to use the CLSQL data access package
- with PostgreSQL databases.
+ with PostgreSQL databases using the PostgreSQL client library.
  CLSQL is a Common Lisp interface to SQL databases.
 
 Package: cl-sql-postgresql-socket
 Architecture: all
-Depends: cl-sql (= ${source:Version}), cl-md5, cl-sql-uffi (>= ${source:Version}), libc6-dev
+Depends: cl-sql (= ${source:Version}), cl-md5, cl-sql-uffi (>= ${source:Version}), libc6-dev, ${misc:Depends}
 Provides: cl-sql-backend
-Description: CLSQL database backend, PostgreSQL
+Description: CLSQL database backend, PostgreSQL via sockets
  This package enables you to use the CLSQL data access package
- with PostgreSQL databases via a socket interface.
+ with PostgreSQL databases via a socket interface to the PostgreSQL
+ server.
  CLSQL is a Common Lisp interface to SQL databases.
 
 Package: cl-sql-sqlite
 Architecture: all
-Depends: cl-sql (= ${source:Version}), libsqlite0-dev, cl-sql-uffi (>= ${source:Version})
+Depends: cl-sql (= ${source:Version}), libsqlite0-dev, cl-sql-uffi (>= ${source:Version}), ${misc:Depends}
 Provides: cl-sql-backend
 Description: CLSQL database backend, SQLite
  This package enables you to use the CLSQL data access package
@@ -81,7 +85,7 @@ Description: CLSQL database backend, SQLite
 
 Package: cl-sql-sqlite3
 Architecture: all
-Depends: cl-sql (= ${source:Version}), libsqlite3-dev, cl-sql-uffi (>= ${source:Version})
+Depends: cl-sql (= ${source:Version}), libsqlite3-dev, cl-sql-uffi (>= ${source:Version}), ${misc:Depends}
 Provides: cl-sql-backend
 Description: CLSQL database backend, SQLite3
  This package enables you to use the CLSQL data access package
@@ -89,9 +93,9 @@ Description: CLSQL database backend, SQLite3
  CLSQL is a Common Lisp interface to SQL databases.
 
 Package: cl-sql-oracle
-Section: contrib/devel
+Section: contrib/lisp
 Architecture: all
-Depends: cl-sql (= ${source:Version}), cl-sql-uffi (>= ${source:Version})
+Depends: cl-sql (= ${source:Version}), cl-sql-uffi (>= ${source:Version}), ${misc:Depends}
 Provides: cl-sql-backend
 Description: CLSQL database backend, Oracle
  This package enables you to use the CLSQL data access package
@@ -100,7 +104,7 @@ Description: CLSQL database backend, Oracle
 
 Package: cl-sql-tests
 Architecture: all
-Depends: cl-sql, cl-sql-postgresql, cl-sql-postgresql-socket, cl-sql-mysql, cl-sql-sqlite, cl-sql-odbc, cl-rt
+Depends: cl-sql, cl-sql-postgresql, cl-sql-postgresql-socket, cl-sql-mysql, cl-sql-sqlite, cl-sql-odbc, cl-rt, ${misc:Depends}
 Suggests: acl-installer, libmyodbc, unixodbc,cl-sql-aodbc 
 Description: Testing suite for CLSQL
  This package contains a test suite for CLSQL. It requires manual

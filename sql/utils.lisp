@@ -57,11 +57,24 @@
                      (string identifier))))
     (substitute #\_ #\- unescaped)))
 
+#+lispworks
+(defvar +lw-has-without-preemption+
+  #+lispworks6 nil
+  #-lispworks6 t)
+#+lispworks
+(defvar +lw-global-lock+
+  (unless +lw-has-without-preemption+
+    (mp:make-lock :name "CLSQL" :important-p nil :safep t :recursivep nil)))
+
 (defmacro without-interrupts (&body body)
   #+allegro `(mp:without-scheduling ,@body)
   #+clisp `(progn ,@body)
   #+cmu `(system:without-interrupts ,@body)
-  #+lispworks `(mp:without-preemption ,@body)
+  #+lispworks
+  (if +lw-has-without-preemption+
+      `(mp:without-preemption ,@body)
+      `(mp:with-exclusive-lock (+lw-global-lock+)
+         ,@body))
   #+openmcl `(ccl:without-interrupts ,@body)
   #+sbcl `(sb-sys::without-interrupts ,@body))
 

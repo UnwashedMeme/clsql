@@ -1,3 +1,97 @@
+7 Jan 2009  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 4.2.1
+	* sql/utils.lisp: Changes to support Lispworks 6
+
+10 Dec 2009  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 4.2.0
+	* doc/ref-ooddl.lisp: Add needed CDATA escapes
+	* doc/clsql.pdf, doc/html.tar.gz: Build new manuals with
+	normalized view classes.
+
+10 Dec 2009  Kevin Rosenberg <kevin@rosenberg.net>
+	Large patch from Thijs Oppermann <thijso+clsql@gmail.com> to add
+	support for normalized view classes.  When having view class that
+	inherit from others, CLSQL by default builds tab all the columns
+	from the parent in the child. This patch is meant to normali so
+	that a join is done on the primary keys of the concerned tables to
+	get a set.
+
+10 Dec 2009  Kevin Rosenberg <kevin@rosenberg.net>
+	* sql/time.lisp: Patch from Oleg Tihonov to SYNTAX-PARSE-ISO-8601
+	to properly parse fractions of seconds.
+
+10 Dec 2009  Kevin Rosenberg <kevin@rosenberg.net>
+	* sql/time.lisp: Patch from Oleg Tihonov to roll function
+	to properly use USEC argument.
+
+21 Nov 2009  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 4.1.2
+	* Makefiles: On 64-bit Linux systems, try to build both 32 and 64-bit
+	interface libraries. This requires the installation of multiarch build tools
+	as well as 32-bit support libraries (libc, libz and libmysqlclient).
+
+04 Sep 2009  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 4.1.1
+	* sql/fdml.lisp: Rework do-query to use supplied database
+	parameter when passed a sql-object-query
+	(thanks to JTK <jetmonk@gmail.com>)
+	* sql/generic-postgresql.lisp: Allow optional connect
+	parameters for postgresql databases (thanks to Stephen Compall)
+	* doc/ref-{clsql,connect}.xml, sql/db-interfaces.lisp:
+	Fix transposed letters (thanks to Stephen Compall)
+	* db-mysql/Makefile: Add directory for MacPorts mysql5 port
+	(thanks to Stephen Compall)
+	* sql/database.lisp: Have database-type default be
+	*default-database-type* (thanks to Desmond O. Chang)
+	* sql/transactions.lisp: Improved handlining of nested
+	transactions (thanks to Eli Naeher)
+	* sql/time.lisp: Commit patch to fix parse-iso-8601-duration
+	(thanks to Stephen Compall)
+	* sql/database.lisp: Use :verbose nil for asdf:operate
+	invocation (Thanks to Mackram Raydan)
+	* sql/metaclasses.lisp: Rework initialize-instance for
+	view-class-direct-slot-definition (thanks to Stephen Compall)
+
+31 Aug 2009  Kevin Rosenberg <kevin@rosenberg.net>
+	* sql/db-interface.lisp: Fix spelling error (thanks to
+	David Thompson)
+	* clsql-mysql.asd/db-mysql/mysql-loader.lisp: Commit
+	patch from Andreas Franke to honor windows drive letter
+	when loading clsql_mysql C library.
+
+31 Aug 2009  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 4.1.0
+	* db-mysql/mysql-{sql,api}.lisp,db-mysql/clsql_mysql.c:
+	Latest version of mysqlclient once again changed the C
+	structures from which the mysql backend reads data.
+	Rather than adding yet another structure definition which
+	is enabled by the client version as read by mysql-client-info.lisp,
+	the mysql backend has been re-written to ignore in the internal
+	C structures. Instead, C wrapper functions for slot access have
+	been added to clsql_mysql.c and are used by mysql-sql.lisp to
+	access the internals of C structures. This adds a bit of overhead,
+	but completely separates the lisp code from trying to keep up
+	with the continually changing internal C structure of mysql.
+	All tests in the test suite executed correctly with this change.
+
+31 Aug 2009  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 4.0.6
+	* sql/database.lisp: Fix syntax on process-lock (thanks to
+	Stian Sletner)
+	* db-mysql/mysql-sql.lisp: Allow use of database parameter
+	in database-list function (thanks to Michael Pheasant)
+	* sql/oodml.lisp: Allow NULL values for floating-point fields
+	(thanks to Jan Rychter)
+
+02 Jun 2009  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 4.0.5
+	* sql/database.lisp: Add process-lock for deleting database from
+	a pool (thanks to Ralf Mattes).
+
+25 Feb 2008  Kevin Rosenberg <kevin@rosenberg.net>
+	* Version 4.0.4
+	* sql/expressions.lisp: Remove stray form (thanks to Samuel Ward)
+
 12 Dec 2007  Kevin Rosenberg <kevin@rosenberg.net>
 	* sql/expressions.lisp: Bind *in-subselect* when outputting
 	selections (patch from unknown source).

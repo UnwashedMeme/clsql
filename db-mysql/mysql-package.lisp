@@ -145,5 +145,8 @@
      #:mysql-stmt-error
 
      #:make-64-bit-integer
+     #:clsql-mysql-field-name
+     #:clsql-mysql-field-type
+     #:clsql-mysql-field-flags
      )
     (:documentation "This is the low-level interface MySQL."))

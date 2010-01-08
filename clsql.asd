@@ -104,7 +104,7 @@ oriented interface."
                                       (namestring (user-homedir-pathname))
                                       ".clsql-init.lisp"))
                         (probe-file "/etc/clsql-init.lisp")
-                        #+(or mswin windows win32)
+                        #+(or mswin windows win32 win64 mswindows)
                         (probe-file "c:\\etc\\clsql-init.lisp"))))
     (when init-file (load init-file))))
 

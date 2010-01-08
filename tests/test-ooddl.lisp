@@ -44,8 +44,33 @@
             (clsql-sys::class-slots (find-class 'employee)))
      (every #'(lambda (slotd)
                 (typep slotd 'clsql-sys::view-class-effective-slot-definition))
+            (clsql-sys::class-slots (find-class 'setting)))
+     (every #'(lambda (slotd)
+                (typep slotd 'clsql-sys::view-class-effective-slot-definition))
+            (clsql-sys::class-slots (find-class 'theme)))
+     (every #'(lambda (slotd)
+                (typep slotd 'clsql-sys::view-class-effective-slot-definition))
+            (clsql-sys::class-slots (find-class 'node)))
+     (every #'(lambda (slotd)
+                (typep slotd 'clsql-sys::view-class-effective-slot-definition))
             (clsql-sys::class-slots (find-class 'company))))
-  t t t)
+  t t t t t t)
+
+;; Ensure classes are correctly marked normalised or not, default not
+;(deftest :ooddl/metaclass/3
+;    (values
+;     (clsql-sys::normalisedp derivednode1)
+;    (clsql-sys::normalisedp basenode)
+;    (clsql-sys::normalisedp company1)
+;    (clsql-sys::normalisedp employee3)
+;    (clsql-sys::normalisedp derivednode-sc-2))
+;  t nil nil nil t)
+
+;(deftest :ooddl/metaclass/3
+; (values
+;  (normalisedp (find-class 'baseclass))
+;  (normalisedp (find-class 'normderivedclass)))
+; nil t)
 
 (deftest :ooddl/join/1
     (mapcar #'(lambda (e) (slot-value e 'ecompanyid))

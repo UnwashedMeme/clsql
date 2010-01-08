@@ -106,7 +106,7 @@ html.tar.gz: $(DOCFILES) Makefile
 fo: ${FOFILE}
 
 ${FOFILE}: $(DOCFILES) Makefile 
-	@XML_CATALOG_FILES="$(CATALOG)" xsltproc --xinclude --output $(FOFILE) fo.xsl $(DOCFILE)
+	@XML_CATALOG_FILES="$(CATALOG)" xsltproc --xinclude --stringparam fop1.extensions 1 --output $(FOFILE) fo.xsl $(DOCFILE)
 
 .PHONY: pdf
 pdf: ${PDFFILE}

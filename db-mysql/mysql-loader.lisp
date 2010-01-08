@@ -38,8 +38,7 @@ set to the right path before compiling or loading the system.")
   *mysql-library-loaded*)
 
 (defmethod clsql-sys:database-type-load-foreign ((database-type (eql :mysql)))
-  (clsql:push-library-path
-   (make-pathname :directory clsql-mysql-system::*library-file-dir*))
+  (clsql:push-library-path clsql-mysql-system::*library-file-dir*)
 
   (clsql-uffi:find-and-load-foreign-library *mysql-library-candidate-names*
                                             :module "mysql"
