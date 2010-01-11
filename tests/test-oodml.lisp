@@ -390,6 +390,37 @@
           "1 Altered title"
           "1 Bare node")
 
+	(deftest :oodml/update-records/4-slots  ;just like 4, but use slots fns.
+	  (flet ((print-fresh-setting ()
+		   (let ((node (car (clsql:select 'setting
+				      :where [= 3 [slot-value 'setting 'setting-id]]
+				      :flatp t :caching nil))))
+		     (format nil "~a ~a ~a"
+			     (slot-value node 'setting-id)
+			     (slot-value node 'title)
+			     (slot-value node 'vars)))))
+	    (values
+	      (print-fresh-setting)
+	      (let ((node (car (clsql:select 'setting
+				 :where [= 3 [slot-value 'setting 'setting-id]]
+				 :flatp t :caching nil))))
+		(setf (slot-value node 'title) "Altered title")
+		(setf (slot-value node 'vars) "Altered vars")
+		(clsql-sys:update-record-from-slot node 'title)
+		(clsql-sys:update-record-from-slot node 'vars)
+		(print-fresh-setting))
+	      (let ((node (car (clsql:select 'setting
+				 :where [= 3 [slot-value 'setting 'setting-id]]
+				 :flatp t :caching nil))))
+		(setf (slot-value node 'title) "Setting2")
+		(setf (slot-value node 'vars) "var 2")
+		(clsql:update-records-from-instance node)
+		(clsql-sys:update-record-from-slots node '(vars title))
+		(print-fresh-setting))))
+          "3 Setting2 var 2"
+          "3 Altered title Altered vars"
+          "3 Setting2 var 2")
+
         (deftest :oodml/update-records/5
 	  (flet ((print-fresh-setting ()
 		   (let ((node (car (clsql:select 'setting
@@ -414,6 +445,36 @@
 		(setf (slot-value node 'title) "Setting2")
 		(setf (slot-value node 'vars) "var 2")
 		(clsql:update-records-from-instance node)
+		(print-fresh-setting))))
+          "3 Setting2 var 2"
+          "3 Altered title Altered vars"
+          "3 Setting2 var 2")
+
+	(deftest :oodml/update-records/5-slots
+	  (flet ((print-fresh-setting ()
+		   (let ((node (car (clsql:select 'setting
+				      :where [= 3 [slot-value 'setting 'setting-id]]
+				      :flatp t :caching nil))))
+		     (format nil "~a ~a ~a"
+			     (slot-value node 'setting-id)
+			     (slot-value node 'title)
+			     (slot-value node 'vars)))))
+	    (values
+	      (print-fresh-setting)
+	      (let ((node (car (clsql:select 'setting
+				 :where [= 3 [slot-value 'setting 'setting-id]]
+				 :flatp t :caching nil))))
+		(setf (slot-value node 'title) "Altered title")
+		(setf (slot-value node 'vars) "Altered vars")
+		(clsql-sys:update-record-from-slot node 'title)
+		(clsql-sys:update-record-from-slot node 'vars)
+		(print-fresh-setting))
+	      (let ((node (car (clsql:select 'setting
+				 :where [= 3 [slot-value 'setting 'setting-id]]
+				 :flatp t :caching nil))))
+		(setf (slot-value node 'title) "Setting2")
+		(setf (slot-value node 'vars) "var 2")
+		(clsql-sys:update-record-from-slots node '(title vars))
 		(print-fresh-setting))))
           "3 Setting2 var 2"
           "3 Altered title Altered vars"
@@ -547,6 +608,37 @@
           "10 subloc-1 a subloc"
           "10 Altered subloc title Altered loc"
           "10 subloc-1 a subloc")
+
+	(deftest :oodml/update-records/9-slots ;like 9, but use slots fns.
+	  (flet ((print-fresh-subloc ()
+		   (let ((sl (car (clsql:select 'subloc
+				    :where [= 10 [slot-value 'subloc 'subloc-id]]
+				    :flatp t :caching nil))))
+		     (format nil "~a ~a ~a"
+			     (slot-value sl 'subloc-id)
+			     (slot-value sl 'title)
+			     (slot-value sl 'loc)))))
+	    (values
+	      (print-fresh-subloc)
+	      (let ((sl (car (clsql:select 'subloc
+			       :where [= 10 [slot-value 'subloc 'subloc-id]]
+			       :flatp t :caching nil))))
+		(setf (slot-value sl 'title) "Altered subloc title")
+		(setf (slot-value sl 'loc) "Altered loc")
+		(clsql:update-record-from-slot sl 'title)
+		(clsql:update-record-from-slot sl 'loc)
+		(print-fresh-subloc))
+	      (let ((sl (car (clsql:select 'subloc
+			       :where [= 10 [slot-value 'subloc 'subloc-id]]
+			       :flatp t :caching nil))))
+		(setf (slot-value sl 'title) "subloc-1")
+		(setf (slot-value sl 'loc) "a subloc")
+		(clsql:update-record-from-slot sl '(title loc))
+		(print-fresh-subloc))))
+          "10 subloc-1 a subloc"
+          "10 Altered subloc title Altered loc"
+          "10 subloc-1 a subloc")
+
 
         ;; tests update-instance-from-records
         (deftest :oodml/update-instance/1
