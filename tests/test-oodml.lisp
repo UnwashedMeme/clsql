@@ -739,64 +739,58 @@
           "7 theme-2 NIL second theme")
 
         (deftest :oodml/update-instance/4
-		   (values
-			(progn
-			  (setf loc2 (car (clsql:select 'location
-											:where [= [node-id] 9]
-											:flatp t :caching nil)))
-			  (with-output-to-string (out)
-				(format out "~a ~a"
-						(slot-value loc2 'node-id)
-						(slot-value loc2 'title))))
-			(progn
-			  (clsql:update-records [node] :av-pairs '(([title] "Altered title"))
-									:where [= [node-id] 9])
-			  (clsql:update-instance-from-records loc2)
-			  (with-output-to-string (out)
-				(format out "~a ~a"
-						(slot-value loc2 'node-id)
-						(slot-value loc2 'title))))
-			(progn
-			  (clsql:update-records [node] :av-pairs '(([title] "location-2"))
-									:where [= [node-id] 9])
-			  (clsql:update-instance-from-records loc2)
-			  (with-output-to-string (out)
-				(format out "~a ~a"
-						(slot-value loc2 'node-id)
-						(slot-value loc2 'title)))))
+	  (values
+	    (progn
+	      (setf loc2 (car (clsql:select 'location
+				:where [= [node-id] 9]
+				:flatp t :caching nil)))
+	      (format nil "~a ~a"
+		      (slot-value loc2 'node-id)
+		      (slot-value loc2 'title)))
+	    (progn
+	      (clsql:update-records [node] :av-pairs '(([title] "Altered title"))
+				    :where [= [node-id] 9])
+	      (clsql:update-instance-from-records loc2)
+	      (format nil "~a ~a"
+		      (slot-value loc2 'node-id)
+		      (slot-value loc2 'title)))
+	    (progn
+	      (clsql:update-records [node] :av-pairs '(([title] "location-2"))
+				    :where [= [node-id] 9])
+	      (clsql:update-instance-from-records loc2)
+	      (format nil "~a ~a"
+		      (slot-value loc2 'node-id)
+		      (slot-value loc2 'title))))
           "9 location-2"
           "9 Altered title"
           "9 location-2")
 
         (deftest :oodml/update-instance/5
-            (values
-             (with-output-to-string (out)
-               (format out "~a ~a ~a"
-                       (slot-value subloc2 'subloc-id)
-                       (slot-value subloc2 'title)
-                       (slot-value subloc2 'loc)))
-             (progn
-               (clsql:update-records [node] :av-pairs '(([title] "Altered title"))
-                                     :where [= [node-id] 11])
-               (clsql:update-records [subloc] :av-pairs '(([loc] "Altered loc"))
-                                     :where [= [subloc-id] 11])
-               (clsql:update-instance-from-records subloc2)
-               (with-output-to-string (out)
-                 (format out "~a ~a ~a"
-                         (slot-value subloc2 'subloc-id)
-                         (slot-value subloc2 'title)
-                         (slot-value subloc2 'loc))))
-             (progn
-               (clsql:update-records [node] :av-pairs '(([title] "subloc-2"))
-                                     :where [= [node-id] 11])
-               (clsql:update-records [subloc] :av-pairs '(([loc] "second subloc"))
-                                     :where [= [subloc-id] 11])
-               (clsql:update-instance-from-records subloc2)
-               (with-output-to-string (out)
-                 (format out "~a ~a ~a"
-                         (slot-value subloc2 'subloc-id)
-                         (slot-value subloc2 'title)
-                         (slot-value subloc2 'loc)))))
+	  (values
+	    (format nil "~a ~a ~a"
+		    (slot-value subloc2 'subloc-id)
+		    (slot-value subloc2 'title)
+		    (slot-value subloc2 'loc))
+	    (progn
+	      (clsql:update-records [node] :av-pairs '(([title] "Altered title"))
+				    :where [= [node-id] 11])
+	      (clsql:update-records [subloc] :av-pairs '(([loc] "Altered loc"))
+				    :where [= [subloc-id] 11])
+	      (clsql:update-instance-from-records subloc2)
+	      (format nil "~a ~a ~a"
+		      (slot-value subloc2 'subloc-id)
+		      (slot-value subloc2 'title)
+		      (slot-value subloc2 'loc)))
+	    (progn
+	      (clsql:update-records [node] :av-pairs '(([title] "subloc-2"))
+				    :where [= [node-id] 11])
+	      (clsql:update-records [subloc] :av-pairs '(([loc] "second subloc"))
+				    :where [= [subloc-id] 11])
+	      (clsql:update-instance-from-records subloc2)
+	      (format nil "~a ~a ~a"
+		      (slot-value subloc2 'subloc-id)
+		      (slot-value subloc2 'title)
+		      (slot-value subloc2 'loc))))
           "11 subloc-2 second subloc"
           "11 Altered title Altered loc"
           "11 subloc-2 second subloc")
@@ -1052,50 +1046,48 @@
           nil ("test-theme"))
 
         (deftest :oodml/db-auto-sync/4
-            (values
-              (let ((inst (make-instance 'theme
-                                         :title "test-theme" :vars "test-vars"
-                                         :doc "test-doc")))
-                (setf (slot-value inst 'title) "alternate-test-theme")
-                (with-output-to-string (out)
-                  (format out "~a ~a ~a ~a"
-                          (select [title] :from [node]
-                                  :where [= [title] "test-theme"]
-                                  :flatp t :field-names nil)
-                          (select [vars] :from [setting]
-                                  :where [= [vars] "test-vars"]
-                                  :flatp t :field-names nil)
-                          (select [doc] :from [theme]
-                                  :where [= [doc] "test-doc"]
-                                  :flatp t :field-names nil)
-                          (select [title] :from [node]
-                                  :where [= [title] "alternate-test-theme"]
-                                  :flatp t :field-names nil))))
-             (let* ((*db-auto-sync* t)
-                    (inst (make-instance 'theme
-                                         :title "test-theme" :vars "test-vars"
-                                         :doc "test-doc")))
-                (setf (slot-value inst 'title) "alternate-test-theme")
-                (prog1
-                (with-output-to-string (out)
-                  (format out "~a ~a ~a ~a"
-                          (select [title] :from [node]
-                                  :where [= [title] "test-theme"]
-                                  :flatp t :field-names nil)
-                          (select [vars] :from [setting]
-                                  :where [= [vars] "test-vars"]
-                                  :flatp t :field-names nil)
-                          (select [doc] :from [theme]
-                                  :where [= [doc] "test-doc"]
-                                  :flatp t :field-names nil)
-                          (select [title] :from [node]
-                                  :where [= [title] "alternate-test-theme"]
-                                  :flatp t :field-names nil)))
-                  (delete-records :from [node] :where [= [title] "alternate-test-theme"])
-                  (delete-records :from [setting] :where [= [vars] "test-vars"])
-                  (delete-records :from [theme] :where [= [doc] "test-doc"]))))
-         "NIL NIL NIL NIL"
-         "NIL (test-vars) (test-doc) (alternate-test-theme)")
+	  (values
+	    (let ((inst (make-instance 'theme
+				       :title "test-theme" :vars "test-vars"
+				       :doc "test-doc")))
+	      (setf (slot-value inst 'title) "alternate-test-theme")
+	      (format nil "~a ~a ~a ~a"
+		      (select [title] :from [node]
+			      :where [= [title] "test-theme"]
+			      :flatp t :field-names nil)
+		      (select [vars] :from [setting]
+			      :where [= [vars] "test-vars"]
+			      :flatp t :field-names nil)
+		      (select [doc] :from [theme]
+			      :where [= [doc] "test-doc"]
+			      :flatp t :field-names nil)
+		      (select [title] :from [node]
+			      :where [= [title] "alternate-test-theme"]
+			      :flatp t :field-names nil)))
+	    (let* ((*db-auto-sync* t)
+		   (inst (make-instance 'theme
+					:title "test-theme" :vars "test-vars"
+					:doc "test-doc")))
+	      (setf (slot-value inst 'title) "alternate-test-theme")
+	      (prog1
+		  (format nil "~a ~a ~a ~a"
+			  (select [title] :from [node]
+				  :where [= [title] "test-theme"]
+				  :flatp t :field-names nil)
+			  (select [vars] :from [setting]
+				  :where [= [vars] "test-vars"]
+				  :flatp t :field-names nil)
+			  (select [doc] :from [theme]
+				  :where [= [doc] "test-doc"]
+				  :flatp t :field-names nil)
+			  (select [title] :from [node]
+				  :where [= [title] "alternate-test-theme"]
+				  :flatp t :field-names nil))
+		(delete-records :from [node] :where [= [title] "alternate-test-theme"])
+		(delete-records :from [setting] :where [= [vars] "test-vars"])
+		(delete-records :from [theme] :where [= [doc] "test-doc"]))))
+	  "NIL NIL NIL NIL"
+	  "NIL (test-vars) (test-doc) (alternate-test-theme)")
 
         (deftest :oodml/setf-slot-value/1
             (let* ((*db-auto-sync* t)
