@@ -1,4 +1,4 @@
 configure-stamp
 build-stamp
-*.fasl
 *~
+*.fasl

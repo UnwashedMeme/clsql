@@ -42,7 +42,6 @@
 
 (defun do-benchmarks-for-backend (db-type spec count)
   (test-connect-to-database db-type spec)
-  (test-initialise-database)
   (write-report-banner "Benchmarks" db-type *report-stream*)
 
   (create-view-from-class 'bench)
@@ -68,17 +67,19 @@
     (time
      (dotimes (i n)
        (query "SELECT * FROM BENCH" :field-names nil)))
-    (format *report-stream* "~&~%*** JOINED OBJECT QUERY RETRIEVAL IMMEDIATE ***~%")
-    (time
-     (dotimes (i (truncate n 10))
-       (mapcar #'(lambda (ea) (slot-value ea 'address)) (select 'employee-address :flatp t))))
 
-    (format *report-stream* "~&~%*** JOINED OBJECT QUERY RETRIEVAL DEFERRED ***~%")
-    (let* ((slotdef (find 'address (clsql-sys::class-slots (find-class 'employee-address))
-                          :key #'clsql-sys::slot-definition-name))
-           (dbi (when slotdef (clsql-sys::view-class-slot-db-info slotdef))))
-      (setf (gethash :retrieval dbi) :deferred)
+    (with-dataset *ds-employees*
+      (format *report-stream* "~&~%*** JOINED OBJECT QUERY RETRIEVAL IMMEDIATE ***~%")
       (time
        (dotimes (i (truncate n 10))
-         (mapcar #'(lambda (ea) (slot-value ea 'address)) (select 'employee-address :flatp t))))
-      (setf (gethash :retrieval dbi) :immediate))))
+	 (mapcar #'(lambda (ea) (slot-value ea 'address)) (select 'employee-address :flatp t))))
+
+      (format *report-stream* "~&~%*** JOINED OBJECT QUERY RETRIEVAL DEFERRED ***~%")
+      (let* ((slotdef (find 'address (clsql-sys::class-slots (find-class 'employee-address))
+			    :key #'clsql-sys::slot-definition-name))
+	     (dbi (when slotdef (clsql-sys::view-class-slot-db-info slotdef))))
+	(setf (gethash :retrieval dbi) :deferred)
+	(time
+	 (dotimes (i (truncate n 10))
+	   (mapcar #'(lambda (ea) (slot-value ea 'address)) (select 'employee-address :flatp t))))
+	(setf (gethash :retrieval dbi) :immediate)))))

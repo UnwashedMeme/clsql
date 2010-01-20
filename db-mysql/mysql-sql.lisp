@@ -766,5 +766,8 @@
   #+(or mysql-client-v4.1 mysql-client-v5) t
   #-(or mysql-client-v4.1 mysql-client-v5) nil)
 
+(defmethod db-type-has-auto-increment? ((db-type (eql :mysql)))
+  t)
+
 (when (clsql-sys:database-type-library-loaded :mysql)
   (clsql-sys:initialize-database-type :database-type :mysql))

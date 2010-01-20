@@ -153,6 +153,7 @@
      #:db-type-use-fully-qualified-column-on-drop-index?
      #:db-type-has-intersect?
      #:db-type-has-except?
+     #:db-type-has-auto-increment?
      #:database-underlying-type
      #:database-get-type-specifier
      #:read-sql-value

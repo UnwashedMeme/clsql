@@ -374,6 +374,12 @@ of TYPE_NAME (keyword) PRECISION SCALE NULLABLE.")
            t)
   (:documentation "T [default] if database-type supports EXCEPT."))
 
+(defgeneric db-type-has-auto-increment? (db-type)
+  (:method (db-type)
+    (declare (ignore db-type)
+	     nil))
+  (:documentation "NIL [default] if database-type supports auto-incrementing columns."))
+
 ;;; Large objects support (Marc Battyani)
 
 (defgeneric database-create-large-object (database)

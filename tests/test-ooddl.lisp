@@ -20,6 +20,21 @@
 
 #.(clsql:locally-enable-sql-reader-syntax)
 
+
+(def-view-class big ()
+  ((i :type integer :initarg :i)
+   (bi :type bigint :initarg :bi)))
+
+(def-dataset *ds-big*
+  (:setup (lambda ()
+	    (clsql-sys:create-view-from-class 'big)
+	    (let ((max (expt 2 60)))
+	      (dotimes (i 555)
+		(update-records-from-instance
+		 (make-instance 'big :i (1+ i) :bi (truncate max (1+ i))))))))
+  (:cleanup
+   (lambda ()  (clsql-sys:drop-view-from-class 'big))))
+
 (setq *rt-ooddl*
       '(
 
@@ -73,57 +88,99 @@
 ; nil t)
 
 (deftest :ooddl/join/1
-    (mapcar #'(lambda (e) (slot-value e 'ecompanyid))
-     (company-employees company1))
+    (with-dataset *ds-employees*
+      (mapcar #'(lambda (e) (slot-value e 'ecompanyid))
+	      (company-employees company1)))
   (1 1 1 1 1 1 1 1 1 1))
 
 (deftest :ooddl/join/2
-    (slot-value (president company1) 'last-name)
+    (with-dataset *ds-employees*
+      (slot-value (president company1) 'last-name))
   "Lenin")
 
 (deftest :ooddl/join/3
-    (slot-value (employee-manager employee2) 'last-name)
+    (with-dataset *ds-employees*
+      (slot-value (employee-manager employee2) 'last-name))
   "Lenin")
 
+(deftest :ooddl/big/1
+    ;;tests that we can create-view-from-class with a bigint slot,
+    ;; and stick a value in there.
+    (progn (clsql-sys:create-view-from-class 'big)
+	   (values
+	     (clsql:table-exists-p [big] :owner *test-database-user*)
+	     (progn
+	       (clsql:drop-table [big] :if-does-not-exist :ignore)
+	       (clsql:table-exists-p [big] :owner *test-database-user*)))
+	   )
+  t nil)
+
+(deftest :ooddl/big/2
+    (with-dataset *ds-big*
+      (let ((rows (clsql:select [*] :from [big] :order-by [i] :field-names nil)))
+	(values
+	  (length rows)
+	  (do ((i 0 (1+ i))
+	       (max (expt 2 60))
+	       (rest rows (cdr rest)))
+	      ((= i (length rows)) t)
+	    (let ((index (1+ i))
+		  (int (first (car rest)))
+		  (bigint (second (car rest))))
+	      (when (and (or (eq *test-database-type* :oracle)
+			     (and (eq *test-database-type* :odbc)
+				  (eq *test-database-underlying-type* :postgresql)))
+			 (stringp bigint))
+		(setf bigint (parse-integer bigint)))
+	      (unless (and (eql int index)
+			   (eql bigint (truncate max index)))
+		(return nil)))))))
+  555 t)
+
 (deftest :ooddl/time/1
-    (let* ((now (clsql:get-time)))
-      (when (member *test-database-underlying-type* '(:postgresql :postgresql-socket))
-        (clsql:execute-command "set datestyle to 'iso'"))
-      (clsql:update-records [employee] :av-pairs `((birthday ,now))
-                           :where [= [emplid] 1])
-      (let ((dbobj (car (clsql:select 'employee :where [= [birthday] now]
-                                      :flatp t))))
-        (values
-         (slot-value dbobj 'last-name)
-         (clsql:time= (slot-value dbobj 'birthday) now))))
+    (with-dataset *ds-employees*
+      (sleep 1) ;force birthdays into the past
+      (let* ((now (clsql:get-time)))
+	(when (member *test-database-underlying-type* '(:postgresql :postgresql-socket))
+	  (clsql:execute-command "set datestyle to 'iso'"))
+	(clsql:update-records [employee] :av-pairs `((birthday ,now))
+			      :where [= [emplid] 1])
+	(let ((dbobj (car (clsql:select 'employee :where [= [birthday] now]
+					:flatp t))))
+	  (values
+	    (slot-value dbobj 'last-name)
+	    (clsql:time= (slot-value dbobj 'birthday) now)))))
   "Lenin" t)
 
 (deftest :ooddl/time/2
-    (let* ((now (clsql:get-time))
-           (fail-index -1))
-      (when (member *test-database-underlying-type* '(:postgresql :postgresql-socket))
-        (clsql:execute-command "set datestyle to 'iso'"))
-      (dotimes (x 40)
-        (clsql:update-records [employee] :av-pairs `((birthday ,now))
-                             :where [= [emplid] 1])
-        (let ((dbobj (car (clsql:select 'employee :where [= [birthday] now]
-                                        :flatp t))))
-          (unless (clsql:time= (slot-value dbobj 'birthday) now)
-            (setf fail-index x))
-          (setf now (clsql:roll now :day (* 10 x)))))
-      fail-index)
+    (with-dataset *ds-employees*
+      (sleep 1) ;force birthdays into the past
+      (let* ((now (clsql:get-time))
+	     (fail-index -1))
+	(when (member *test-database-underlying-type* '(:postgresql :postgresql-socket))
+	  (clsql:execute-command "set datestyle to 'iso'"))
+	(dotimes (x 40)
+	  (clsql:update-records [employee] :av-pairs `((birthday ,now))
+				:where [= [emplid] 1])
+	  (let ((dbobj (car (clsql:select 'employee :where [= [birthday] now]
+					  :flatp t))))
+	    (unless (clsql:time= (slot-value dbobj 'birthday) now)
+	      (setf fail-index x))
+	    (setf now (clsql:roll now :day (* 10 x)))))
+	fail-index))
   -1)
 
 (deftest :ooddl/time/3
-    (progn
-      (when (member *test-database-underlying-type* '(:postgresql :postgresql-socket))
-        (clsql:execute-command "set datestyle to 'iso'"))
-      (let ((dbobj (car (clsql:select 'employee :where [= [emplid] 10]
-                                      :flatp t))))
-        (list
-         (eql *test-start-utime* (slot-value dbobj 'bd-utime))
-         (clsql:time= (slot-value dbobj 'birthday)
-                      (clsql:utime->time (slot-value dbobj 'bd-utime))))))
+    (with-dataset *ds-employees*
+      (progn
+	(when (member *test-database-underlying-type* '(:postgresql :postgresql-socket))
+	  (clsql:execute-command "set datestyle to 'iso'"))
+	(let ((dbobj (car (clsql:select 'employee :where [= [emplid] 10]
+					:flatp t))))
+	  (list
+	   (eql *test-start-utime* (slot-value dbobj 'bd-utime))
+	   (clsql:time= (slot-value dbobj 'birthday)
+			(clsql:utime->time (slot-value dbobj 'bd-utime)))))))
   (t t))
 
 ))
