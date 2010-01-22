@@ -162,6 +162,3 @@ returned is that used for recording SQL commands or results."
                 (iso-timestring (get-time))
                 (database-name database)
                 res)))))
-
-
-

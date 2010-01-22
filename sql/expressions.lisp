@@ -941,8 +941,7 @@ uninclusive, and the args from that keyword to the end."
                      arg)))
 
 (defmethod database-output-sql ((self wall-time) database)
-  (declare (ignore database))
-  (db-timestring self))
+  (db-timestring self :database database))
 
 (defmethod database-output-sql ((self date) database)
   (declare (ignore database))

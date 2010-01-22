@@ -24,16 +24,18 @@ May be locally bound to something else if a certain type is necessary.")
 
 
 (defvar *binary-format* :unsigned-byte-vector)
-(defvar *time-conversion-function*
+(defparameter *time-conversion-function*
     (lambda (universal-time &optional fraction)
-      (declare (ignore fraction))
-      (clsql-sys:format-time
-       nil (clsql-sys:utime->time universal-time)
-       :format :iso)
+       (let ((time (clsql-sys:utime->time universal-time)))
+	 (setf time (clsql-sys:time+
+		     time
+		     (clsql-sys:make-duration :usec (/ fraction 1000))))
+	 (clsql-sys:format-time nil time :format :iso))
       #+ignore
       universal-time)
    "Bound to a function that converts from a Lisp universal time fixnum (and a fractional
 as possible second argument) to the desired representation of date/time/timestamp. By default, returns an iso-timestring.")
+
 
 (defvar +null-ptr+ (make-null-pointer :byte))
 (defparameter +null-handle-ptr+ (make-null-pointer :void))

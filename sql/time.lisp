@@ -428,57 +428,24 @@
 ;; ------------------------------------------------------------
 ;; Formatting and output
 
-(defvar +decimal-printer+ #(#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9))
-
-(defun db-timestring (time)
+(defun db-timestring (time &key stream database)
   "return the string to store the given time in the database"
-  (declare (optimize (speed 3)))
-  (let ((output (copy-seq "'XXXX-XX-XX XX:XX:XX.")))
-    (flet ((inscribe-base-10 (output offset size decimal)
-             (declare (type fixnum offset size decimal)
-                      (type (simple-vector 10) +decimal-printer+))
-             (dotimes (x size)
-               (declare (type fixnum x)
-                        (optimize (safety 0)))
-               (multiple-value-bind (next this)
-                   (floor decimal 10)
-                 (setf (aref output (+ (- size x 1) offset))
-                       (aref +decimal-printer+ this))
-                 (setf decimal next)))))
-      (multiple-value-bind (usec second minute hour day month year)
-          (decode-time time)
-        (inscribe-base-10 output 1 4 year)
-        (inscribe-base-10 output 6 2 month)
-        (inscribe-base-10 output 9 2 day)
-        (inscribe-base-10 output 12 2 hour)
-        (inscribe-base-10 output 15 2 minute)
-        (inscribe-base-10 output 18 2 second)
-        (format nil "~a~d'" output usec)))))
+  (if stream
+      (progn (write-char #\' stream) (iso-timestring time :stream stream :database database) (write-char #\' stream))
+      (concatenate 'string "'" (iso-timestring time :database database) "'")))
 
-(defun iso-timestring (time)
+
+(defun iso-timestring (time &key stream database)
   "return the string to store the given time in the database"
-  (declare (optimize (speed 3)))
-  (let ((output (copy-seq "XXXX-XX-XX XX:XX:XX,")))
-    (flet ((inscribe-base-10 (output offset size decimal)
-             (declare (type fixnum offset size decimal)
-                      (type (simple-vector 10) +decimal-printer+))
-             (dotimes (x size)
-               (declare (type fixnum x)
-                        (optimize (safety 0)))
-               (multiple-value-bind (next this)
-                   (floor decimal 10)
-                 (setf (aref output (+ (- size x 1) offset))
-                       (aref +decimal-printer+ this))
-                 (setf decimal next)))))
-      (multiple-value-bind (usec second minute hour day month year)
-          (decode-time time)
-        (inscribe-base-10 output 0 4 year)
-        (inscribe-base-10 output 5 2 month)
-        (inscribe-base-10 output 8 2 day)
-        (inscribe-base-10 output 11 2 hour)
-        (inscribe-base-10 output 14 2 minute)
-        (inscribe-base-10 output 17 2 second)
-        (format nil "~a,~d" output usec)))))
+  (let (*print-pretty*)
+    (multiple-value-bind (usec second minute hour day month year dow)
+	(decode-time time)
+      (declare (ignore dow))
+      (format stream "~4,'0D-~2,'0D-~2,'0D ~2,'0D:~2,'0D:~2,'0D.~6,'0D~a"
+	      year month day hour minute second usec
+	      (if (or (null database)
+		      (database-uses-localtimes? database))
+		  "" "Z")))))
 
 (defun db-datestring (date)
   (db-timestring (date->time date)))
@@ -827,7 +794,8 @@ with the given options"
 (defun format-time (stream time &key format
                     (date-separator "-")
                     (time-separator ":")
-                    (internal-separator " "))
+                    (internal-separator " ")
+		    database)
   "produces on stream the timestring corresponding to the wall-time
 with the given options"
   (let ((*print-circle* nil))
@@ -835,26 +803,23 @@ with the given options"
         (decode-time time)
       (case format
         (:pretty
-         (format stream "~A ~A, ~A ~D, ~D"
-                 (pretty-time hour minute)
-                 (day-name dow)
-                 (month-name month)
-                 day
-                 year))
+	   (format stream "~A ~A, ~A ~D, ~D"
+		   (pretty-time hour minute)
+		   (day-name dow)
+		   (month-name month)
+		   day
+		   year))
         (:short-pretty
-         (format stream "~A, ~D/~D/~D"
-                 (pretty-time hour minute)
-                 month day year))
-        (:iso
-         (let ((string (iso-timestring time)))
-           (if stream
-               (write-string string stream)
-             string)))
+	   (format stream "~A, ~D/~D/~D"
+		   (pretty-time hour minute)
+		   month day year))
+        ((:iso :iso8601)
+	   (iso-timestring time :stream stream :database database))
         (t
-         (format stream "~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D.~6,'0D"
-                 year date-separator month date-separator day
-                 internal-separator hour time-separator minute time-separator
-                 second usec))))))
+	   (format stream "~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D.~6,'0D"
+		   year date-separator month date-separator day
+		   internal-separator hour time-separator minute time-separator
+		   second usec))))))
 
 (defun pretty-time (hour minute)
   (cond

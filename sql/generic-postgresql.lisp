@@ -382,3 +382,8 @@
 (defmethod db-type-has-prepared-stmt? ((db-type (eql :postgresql-socket)))
   t)
 
+(defmethod database-uses-localtimes? ((db-type (eql :postgresql))) nil)
+(defmethod database-uses-localtimes? ((db-type (eql :postgresql-socket))) nil)
+(defmethod database-uses-localtimes? ((db generic-postgresql-database)) nil)
+
+
