@@ -259,6 +259,28 @@
 	(write-char #\) *sql-stream*))))
   t)
 
+(defclass sql-array-exp (sql-relational-exp)
+  ()
+  (:documentation "An SQL relational expression."))
+
+(defmethod output-sql ((expr sql-array-exp) database)
+  (with-slots (operator sub-expressions)
+    expr
+    (let ((subs (if (consp (car sub-expressions))
+                    (car sub-expressions)
+                    sub-expressions)))
+      (write-char #\( *sql-stream*)
+      (output-sql operator database)
+      (write-char #\[ *sql-stream*)
+      (do ((sub subs (cdr sub)))
+          ((null (cdr sub)) (output-sql (car sub) database))
+        (output-sql (car sub) database)
+        (write-char #\, *sql-stream*)
+        (write-char #\Space *sql-stream*))
+      (write-char #\] *sql-stream*)
+      (write-char #\) *sql-stream*)))
+  t)
+
 (defclass sql-upcase-like (sql-relational-exp)
   ()
   (:documentation "An SQL 'like' that upcases its arguments."))
