@@ -368,6 +368,12 @@ of TYPE_NAME (keyword) PRECISION SCALE NULLABLE.")
            t)
   (:documentation "T [default] if database-type supports INTERSECT."))
 
+(defgeneric db-type-has-top-instead-of-limit? (db-type)
+  (:method (db-type)
+           (declare (ignore db-type))
+           nil)
+  (:documentation "NIL default T for databases like sqlserver"))
+
 (defgeneric db-type-has-except? (db-type)
   (:method (db-type)
            (declare (ignore db-type))

@@ -117,6 +117,9 @@
 (defmethod db-type-has-intersect? ((db-type (eql :mssql)))
   nil)
 
+(defmethod db-type-has-top-instead-of-limit? ((db-type (eql :mssql)))
+  T)
+
 (defmethod db-type-has-except? ((db-type (eql :mssql)))
   nil)
 
