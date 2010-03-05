@@ -122,6 +122,8 @@ chance to do cleanup."
 	 (database-execute-command "DISCARD ALL" database)))))
 
 (defun clear-conn-pool (pool)
+  "Be careful this function will disconnect connections without regard
+to whether another thread is actively using them."
   (with-process-lock ((conn-pool-lock pool) "Clear pool")
     (mapc #'%pool-force-disconnect (all-connections pool))
     (setf (all-connections pool) nil
