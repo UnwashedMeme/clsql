@@ -602,14 +602,16 @@ uninclusive, and the args from that keyword to the end."
       (output-sql (apply #'vector selections) database))
     (when from
       (write-string " FROM " *sql-stream*)
-      (flet ((ident-table-equal (a b)
-               (and (if (and (eql (type-of a) 'sql-ident-table)
-                             (eql (type-of b) 'sql-ident-table))
-                        (string-equal (slot-value a 'alias)
-                                      (slot-value b 'alias))
-                        t)
-                    (string-equal (sql-escape (slot-value a 'name))
-                                  (sql-escape (slot-value b 'name))))))
+      (labels ((ident-string-val (a)
+                 (typecase a
+                   (sql-ident
+                    (or (ignore-errors (slot-value a 'alias))
+                        (ignore-errors (slot-value a 'name))))
+                   (string a)))
+               (ident-table-equal (a b)
+                 ;; The things should be type compatable
+                 (string-equal (ident-string-val a)
+                               (ident-string-val b))))
         (typecase from
           (list (output-sql (apply #'vector
                                    (remove-duplicates from
