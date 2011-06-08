@@ -174,7 +174,8 @@ B varchar(32))")
 
 (deftest :fddl/attributes/5
     (with-dataset *ds-fddl*
-      (and (member (clsql:attribute-type [d] [alpha]) '(:datetime :timestamp :date)) t))
+      (and (member (clsql:attribute-type [d] [alpha])
+                   '(:datetime :timestamp :date :smalldatetime)) t))
   t)
 
 (deftest :fddl/attributes/6
