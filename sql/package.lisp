@@ -210,6 +210,14 @@
      #:sql-escape
      #:in
 
+     ;; Command-object.lisp
+     #:expression
+     #:parameters
+     #:prepared-name
+     #:has-been-prepared
+     #:command-object
+     #:reset-command-object
+
      ;; Generic backends
      #:generic-postgresql-database
      #:generic-odbc-database

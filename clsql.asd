@@ -87,7 +87,8 @@ oriented interface."
 			:pathname ""
 			:components ((:file "generic-postgresql")
 				     (:file "generic-odbc")
-				     (:file "sequences"))
+				     (:file "sequences")
+				     (:file "command-object"))
 			:depends-on (functional))))))
 
 
