@@ -32,6 +32,27 @@
 		      :documentation "Have we already prepared this command object")
    ))
 
-(export '(expression parameters prepared-name has-been-prepared command-object))
+(defmethod initialize-instance :after ((o command-object) &key &allow-other-keys )
+  ;; Inits parameter nulls
+  (setf (parameters o) (parameters o)))
 
+(defmethod (setf parameters) (new (o command-object))
+  " This causes the semantics to match cl-sql instead of cl-postgresql
+  "
+  (setf (slot-value o 'parameters)
+	(loop for p in new
+	      collecting (cond ((null p) :null)
+			       ((member p (list :false :F)) nil)
+			       (T p)))))
 
+(defun reset-command-object (co)
+  "Resets the command object to have no name and to be unprepared
+     (This is useful if you want to run a command against a second database)"
+  (setf (prepared-name co) ""
+	(has-been-prepared co) nil))
+
+(defun command-object (expression &optional parameters (prepared-name ""))
+  (make-instance 'command-object
+		 :expression expression
+		 :parameters parameters
+		 :prepared-name prepared-name))

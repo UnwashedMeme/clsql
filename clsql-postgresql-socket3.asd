@@ -33,7 +33,6 @@
   :components
   ((:module :db-postgresql-socket3
 	    :serial T
-	    :components ((:file "command-object")
-			 (:file "package")
+	    :components ((:file "package")
 			 (:file "api")
 			 (:file "sql")))))
