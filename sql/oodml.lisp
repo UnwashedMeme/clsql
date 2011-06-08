@@ -1086,7 +1086,7 @@ maximum of MAX-LEN instances updated in each query."
                  order-by offset limit refresh flatp result-types
                  inner-join on
                  (database *default-database*)
-                 instances)
+                 instances parameters)
   "Called by SELECT to generate object query results when the
   View Classes VIEW-CLASSES are passed as arguments to SELECT."
   (declare (ignore all set-operation group-by having offset limit inner-join on))
@@ -1313,6 +1313,7 @@ as elements of a list."
                      results))))))))
         (t
          (let* ((expr (apply #'make-query select-all-args))
+                (parameters (second (member :parameters select-all-args)))
                 (specified-types
                  (mapcar #'(lambda (attrib)
                              (if (typep attrib 'sql-ident-attribute)
@@ -1328,6 +1329,8 @@ as elements of a list."
                                      (database *default-database*)
                                      &allow-other-keys)
                qualifier-args
+             (when parameters
+               (setf expr (command-object (sql-output expr database) parameters)))
              (query expr :flatp flatp
                     :result-types
                     ;; specifying a type for an attribute overrides result-types
