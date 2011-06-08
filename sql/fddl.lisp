@@ -111,6 +111,13 @@ is a string denoting a user name, only tables owned by OWNER are
 listed. If OWNER is :all then all tables are listed."
   (database-list-tables database :owner owner))
 
+(defmethod %table-exists-p (name (database T) &key owner )
+  (unless database (setf database *default-database*))
+  (let ((name (database-identifier name database))
+        (tables (list-tables :owner owner :database database)))
+    (when (member name tables :test #'string-equal)
+      t)))
+
 (defun table-exists-p (name &key (owner nil) (database *default-database*))
   "Tests for the existence of an SQL table called NAME in DATABASE
 which defaults to *DEFAULT-DATABASE*. OWNER is nil by default
@@ -118,10 +125,7 @@ which means that only tables owned by users are examined. If
 OWNER is a string denoting a user name, only tables owned by
 OWNER are examined. If OWNER is :all then all tables are
 examined."
-  (when (member (database-identifier name database)
-                (list-tables :owner owner :database database)
-                :test #'string-equal)
-    t))
+  (%table-exists-p name database :owner owner))
 
 
 ;; Views
