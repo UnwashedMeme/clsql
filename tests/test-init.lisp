@@ -311,6 +311,22 @@
                              :time/pg/fdml/usec :time/pg/oodml/no-usec :time/pg/oodml/usec))
           (push (cons test "Postgres specific test.")
                 skip-tests))
+         ((and (eql *test-database-type* :postgresql-socket3)
+               (clsql-sys:in test :BASIC/SELECT/2 :basic/select/3))
+          (push (cons test "Postgres-socket3 always auto types")
+                skip-tests))
+         ((and (eql *test-database-type* :postgresql-socket3)
+               (clsql-sys:in test :fdml/select/18))
+          (push (cons test "Postgres-socket3 doesnt support attribute based type coersion")
+                skip-tests))
+         ((and (eql *test-database-type* :postgresql-socket3)
+               (clsql-sys:in test :basic/map/1 :basic/map/2 :basic/map/3 :basic/map/4
+                :basic/do/1 :basic/do/2 :fdml/do-query/1 :fdml/map-query/1
+                :fdml/map-query/2 :fdml/map-query/3 :fdml/map-query/4 :fdml/loop/1
+                :fdml/loop/2 :fdml/loop/3
+                ))
+          (push (cons test "postgresql-socket3 doesnt support cursoring interface")
+                skip-tests))
          ((and (member *test-database-underlying-type* '(:mysql))
                (clsql-sys:in test :time/cross-platform/msec
 			     :time/cross-platform/usec/no-tz :time/cross-platform/usec/tz))
