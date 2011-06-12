@@ -127,7 +127,7 @@
 ;; test retrieval of node, derived nodes etc
 (deftest :oodml/select/12
     (with-dataset *ds-nodes*
-      (length (clsql:select 'node :where [node-id] :flatp t :caching nil)))
+      (length (clsql:select 'node :where [not [null [node-id]]] :flatp t :caching nil)))
   11)
 
 (deftest :oodml/select/13
@@ -140,7 +140,7 @@
 
 (deftest :oodml/select/14
     (with-dataset *ds-nodes*
-      (length (clsql:select 'setting :where [setting-id] :flatp t :caching nil)))
+      (length (clsql:select 'setting :where [not [null [setting-id]]] :flatp t :caching nil)))
   4)
 
 (deftest :oodml/select/15
@@ -155,7 +155,7 @@
 
 (deftest :oodml/select/16
     (with-dataset *ds-nodes*
-      (length (clsql:select 'user :where [user-id] :flatp t :caching nil)))
+      (length (clsql:select 'user :where [not [null [user-id]]] :flatp t :caching nil)))
   2)
 
 (deftest :oodml/select/17
@@ -170,7 +170,7 @@
 
 (deftest :oodml/select/18
     (with-dataset *ds-nodes*
-      (length (clsql:select 'theme :where [theme-id] :flatp t :caching nil)))
+      (length (clsql:select 'theme :where [not [null [theme-id]]] :flatp t :caching nil)))
   2)
 
 (deftest :oodml/select/19
@@ -203,7 +203,7 @@
 
 (deftest :oodml/select/22
     (with-dataset *ds-nodes*
-      (let ((a (car (clsql:select 'subloc :where [subloc-id] :flatp t :caching nil))))
+      (let ((a (car (clsql:select 'subloc :where [not [null [subloc-id]]] :flatp t :caching nil))))
 	(values
 	  (slot-value a 'node-id)
 	  (slot-value a 'subloc-id)
