@@ -391,4 +391,3 @@ is replaced with replacement. [FROM http://cl-cookbook.sourceforge.net/strings.h
 	    while pos)
     (unless stream
       (get-output-stream-string out))))
-
