@@ -19,6 +19,7 @@
 
 (defpackage #:clsql-tests
   (:use #:clsql #:common-lisp #:rtest)
+  (:shadowing-import-from #:clsql-sys #:%get-int )
   (:export
    #:run-tests
    #:run-tests-append-report-file

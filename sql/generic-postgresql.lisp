@@ -177,28 +177,29 @@
                    database nil nil))))
     (when row
       (destructuring-bind (typname attlen atttypmod attnull) row
-
-        (setf attlen (parse-integer attlen :junk-allowed t)
-              atttypmod (parse-integer atttypmod :junk-allowed t))
-
+        (setf attlen (%get-int attlen)
+              atttypmod (%get-int atttypmod))
         (let ((coltype (ensure-keyword typname))
-              (colnull (if (string-equal "f" attnull) 1 0))
+              (colnull (typecase attnull
+                         (string (if (string-equal "f" attnull) 1 0))
+                         (null 1)
+                         (T 0)))
               collen
               colprec)
-           (setf (values collen colprec)
-                 (case coltype
-                   ((:numeric :decimal)
-                    (if (= -1 atttypmod)
-                        (values nil nil)
-                        (values (ash (- atttypmod 4) -16)
-                                (boole boole-and (- atttypmod 4) #xffff))))
-                   (otherwise
-                    (values
-                     (cond ((and (= -1 attlen) (= -1 atttypmod)) nil)
-                           ((= -1 attlen) (- atttypmod 4))
-                           (t attlen))
-                     nil))))
-           (values coltype collen colprec colnull))))))
+          (setf (values collen colprec)
+                (case coltype
+                  ((:numeric :decimal)
+                   (if (= -1 atttypmod)
+                       (values nil nil)
+                       (values (ash (- atttypmod 4) -16)
+                               (boole boole-and (- atttypmod 4) #xffff))))
+                  (otherwise
+                   (values
+                    (cond ((and (= -1 attlen) (= -1 atttypmod)) nil)
+                          ((= -1 attlen) (- atttypmod 4))
+                          (t attlen))
+                    nil))))
+          (values coltype collen colprec colnull))))))
 
 (defmethod database-create-sequence (sequence-name
                                      (database generic-postgresql-database))
@@ -219,7 +220,7 @@
 (defmethod database-set-sequence-position (name (position integer)
                                                 (database generic-postgresql-database))
   (values
-   (parse-integer
+   (%get-int
     (caar
      (database-query
       (format nil "SELECT SETVAL ('~A', ~A)" (escaped-database-identifier name) position)
@@ -228,7 +229,7 @@
 (defmethod database-sequence-next (sequence-name
                                    (database generic-postgresql-database))
   (values
-   (parse-integer
+   (%get-int
     (caar
      (database-query
       (concatenate 'string "SELECT NEXTVAL ('" (escaped-database-identifier sequence-name) "')")
@@ -236,7 +237,7 @@
 
 (defmethod database-sequence-last (sequence-name (database generic-postgresql-database))
   (values
-   (parse-integer
+   (%get-int
     (caar
      (database-query
       (concatenate 'string "SELECT LAST_VALUE FROM " (escaped-database-identifier sequence-name))

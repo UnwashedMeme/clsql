@@ -16,6 +16,12 @@
 
 (in-package #:clsql-tests)
 
+(defun %get-int (v)
+  (etypecase v
+    (string (parse-integer v :junk-allowed t))
+    (integer v)
+    (number (truncate v))))
+
 (defvar *config-pathname*
   (make-pathname :defaults (user-homedir-pathname)
                  :name ".clsql-test"
