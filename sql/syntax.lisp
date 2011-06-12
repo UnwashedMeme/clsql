@@ -110,9 +110,17 @@ reader syntax is disabled."
 
 (defun generate-sql-reference (&rest arglist)
   (cond ((= (length arglist) 1) ; string, table or attribute
-         (if (stringp (car arglist))
-             (sql-expression :string (car arglist))
-             (sql-expression :attribute (car arglist))))
+         (let ((arg (first arglist)))
+           (typecase arg
+             (string (sql-expression :string arg))
+             (symbol ;; handle . separated names
+              (let* ((sn (symbol-name arg))
+                     (idx (position #\. sn)))
+                (cond
+                  (idx (sql-expression :table (intern (subseq sn 0 idx))
+                                       :attribute (intern (subseq sn (+ idx 1))) ))
+                  (T (sql-expression :attribute arg))))
+              ))))
         ((<= 2 (length arglist))
          (let ((sqltype (when (keywordp (caddr arglist)) (caddr arglist) nil)))
            (cond
