@@ -801,9 +801,9 @@ uninclusive, and the args from that keyword to the end."
 
 (declaim (inline listify))
 (defun listify (x)
-  (if (atom x)
-      (list x)
-      x))
+  (if (listp x)
+      x
+      (list x)))
 
 (defmethod output-sql ((stmt sql-create-table) database)
   (flet ((output-column (column-spec)
