@@ -144,17 +144,38 @@ the query against." ))
           (disable-autocommit (hdbc db))))
     db))
 
+(defmethod clsql-sys::database-release-to-conn-pool
+    ((database clsql-sys::generic-odbc-database))
+  #+adwolf
+  (adwolf::adwolf-log.debug  "~%~% clsql-sys::database-release-to-conn-pool ~%~4t~S~%~4t~S~%~4t~S"
+   (get-universal-time)
+   sb-thread:*current-thread*
+   database )
+  (reset-connection database :reset))
+
+(defun reset-connection (database &optional (type :drop) (disconnect-p nil))
+  #+adwolf
+  (adwolf::adwolf-log.debug "reset-connection ~A" database)
+  (let ((database (typecase database
+                    (odbc-db database)
+                    (clsql-sys::generic-odbc-database
+                     (clsql-sys::odbc-conn database)))))
+    (with-slots (hdbc queries) database
+      (dolist (query queries)
+        (if (query-active-p query)
+            (with-slots (hstmt) query
+              (when hstmt
+                (%free-statement hstmt type)
+                (%close-cursor hstmt)
+                (setf hstmt nil)))))
+      (when (db-hstmt database)
+        (%free-statement (db-hstmt database) type)
+        (%close-cursor (db-hstmt database)))
+      (when disconnect-p
+        (%disconnect hdbc)))))
+
 (defun disconnect (database)
-  (with-slots (hdbc queries) database
-    (dolist (query queries)
-      (if (query-active-p query)
-          (with-slots (hstmt) query
-            (when hstmt
-              (%free-statement hstmt :drop)
-              (setf hstmt nil)))))
-    (when (db-hstmt database)
-      (%free-statement (db-hstmt database) :drop))
-    (%disconnect hdbc)))
+  (reset-connection database :drop T))
 
 
 (defun sql (expr &key db result-types row-count (column-names t) query
@@ -642,6 +663,9 @@ This makes the functions db-execute-command and db-query thread safe."
 
 
 (defun %db-reset-query (query)
+  #+adwolf
+  (adwolf::adwolf-log.debug "reset query ~A"
+   query)
   (with-slots (hstmt parameter-data-ptrs) query
     (prog1
       (db-fetch-query-results query nil)

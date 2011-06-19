@@ -96,6 +96,7 @@
 (defmethod choose-database-for-instance ((obj standard-db-object) &optional database)
   "Determine which database connection to use for a standard-db-object.
         Errs if none is available."
+  (adwolf::agent-log.debug "base choose-database-for-instance")
   (or (find-if #'(lambda (db)
                    (and db (is-database-open db)))
                (list (view-database obj)

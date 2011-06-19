@@ -29,6 +29,19 @@
   :module "odbc"
   :returning :short)
 
+;; odbc v3
+(def-function "SQLFreeHandle"
+    ((handle-type :short)
+     (input-handle sql-handle))
+  :module "odbc"
+  :returning :short)
+
+;; odbc v3
+(def-function "SQLCloseCursor"
+    ((input-handle sql-handle))
+  :module "odbc"
+  :returning :short)
+
 ;; deprecated
 (def-function "SQLAllocEnv"
     ((*phenv sql-handle-ptr)    ; HENV   FAR *phenv

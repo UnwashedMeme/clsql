@@ -197,6 +197,13 @@ as possible second argument) to the desired representation of date/time/timestam
          (:unbind $SQL_UNBIND)
          (:reset $SQL_RESET_PARAMS)))))
 
+(defun %close-cursor (hstmt)
+  #+adwolf
+  (adwolf::adwolf-log.debug "closing cursor: ~A" hstmt)
+  (with-error-handling
+      (:hstmt hstmt)
+      (SQLCloseCursor hstmt)))
+
 (defmacro with-statement-handle ((hstmt hdbc) &body body)
   `(let ((,hstmt (%new-statement-handle ,hdbc)))
      (unwind-protect

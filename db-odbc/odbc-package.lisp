@@ -28,6 +28,7 @@
      #:*time-conversion-function*
      #:get-cast-long
      #:%free-statement
+     #:%close-cursor
      #:%disconnect
      #:%commit
      #:%rollback

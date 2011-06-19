@@ -106,6 +106,11 @@ chance to do cleanup."
     (:mysql
        (database-query "SHOW ERRORS LIMIT 1" database nil nil))
     (:mssql
+     #+adwolf
+     (adwolf::adwolf-log.debug  "~%~% th/db -aquire- ~%~4t~S~%~4t~S~%~4t~S"
+      (get-universal-time)
+      sb-thread:*current-thread*
+      database )
        ;; rpc escape sequence since this can't be called as a normal sp.
        ;;http://msdn.microsoft.com/en-us/library/aa198358%28SQL.80%29.aspx
        (database-execute-command "{rpc sp_reset_connection}" database))
@@ -115,11 +120,11 @@ chance to do cleanup."
 (defmethod database-release-to-conn-pool (database)
   (case (database-underlying-type database)
     (:postgresql
-       (ignore-errors
-	 ;;http://www.postgresql.org/docs/current/static/sql-discard.html
-	 ;;this was introduced relatively recently, wrap in ignore-errors
-	 ;;so that it doesn't choke older versions.
-	 (database-execute-command "DISCARD ALL" database)))))
+     (ignore-errors
+      ;;http://www.postgresql.org/docs/current/static/sql-discard.html
+      ;;this was introduced relatively recently, wrap in ignore-errors
+      ;;so that it doesn't choke older versions.
+      (database-execute-command "DISCARD ALL" database)))))
 
 (defun clear-conn-pool (pool)
   (with-process-lock ((conn-pool-lock pool) "Clear pool")
