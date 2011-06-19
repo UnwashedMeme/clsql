@@ -906,7 +906,7 @@ maximum of MAX-LEN instances updated in each query."
     (let ((jq (join-qualifier class object slot-def)))
       (when jq
         (select jc :where jq :flatp t :result-types nil
-                :database (view-database object))))))
+                :database (choose-database-for-instance object))))))
 
 (defun fault-join-slot (class object slot-def)
   (let* ((dbi (view-class-slot-db-info slot-def))
@@ -955,7 +955,7 @@ maximum of MAX-LEN instances updated in each query."
         (let ((res (car (select (class-name sc) :where jq
                                                 :flatp t :result-types nil
                                                 :caching nil
-                                                :database (view-database object))))
+                                                :database (choose-database-for-instance object))))
               (slot-name (slot-definition-name slot-def)))
 
           ;; If current class is normalized and wanted slot is not
