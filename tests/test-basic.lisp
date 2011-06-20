@@ -190,12 +190,7 @@
 		     results)
 	      (destructuring-bind (int bigint) row
 		(push (list (integerp int)
-			    (if (and (eq :odbc *test-database-type*)
-				     (eq :postgresql *test-database-underlying-type*))
-				;; ODBC/Postgresql may return returns bigints as strings or integer
-				;; depending upon the platform
-				t
-				(integerp bigint)))
+                            (integerp bigint))
 		      results)))))
       ((t t) (t t) (t t) (t t) (t t) (t t) (t t) (t t) (t t) (t t) (t t)))
 
