@@ -1,4 +1,15 @@
 2011-06-20  Nathan Bird  <nathan@acceleration.net>
+
+	* sql/time.lisp: Handle parsing already parsed objects.
+	* sql/oodml.lisp: raise exception if we generate an update with no
+	where clause.
+	* sql/expressions.lisp: (listify nil) => nil instead of (nil).
+	* db-odbc/: bugfixes for working with older versions of FreeTDS;
+	* MSSQL improvements: use top instead of limit, IDENTITY can be a
+	column constraint, clsql:date becomes 'smalldatetime'
+
+2011-06-20  Nathan Bird  <nathan@acceleration.net>
+
 	* Version 5.3.4
 	* db-postgresql-socket/postgresql-socket-api.lisp: Addendum
 	to Otto Diesenbacher's patch that had a spurious write a 0
