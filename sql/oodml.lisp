@@ -267,7 +267,7 @@
                        (db-value-from-slot slot value database)))))
       (let* ((view-class (or this-class (class-of obj)))
              (pk-slot (car (keyslots-for-class view-class)))
-             (pk-name (slot-definition-name pk-slot))
+             (pk-name (when pk-slot (slot-definition-name pk-slot)))
              (view-class-table (view-table view-class))
              (pclass (car (class-direct-superclasses view-class))))
         (when (normalizedp view-class)
