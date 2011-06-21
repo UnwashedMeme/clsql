@@ -254,23 +254,79 @@
 
 ;;;; Cursoring interface
 
+(defvar *cont* nil)
+(defvar *current-row* nil)
+
+;; THE FOLLOWING MACRO EXPANDS TO THE FUNCTION BELOW IT,
+;; BUT TO GET null CONVENTIONS CORRECT I NEEDED TO TWEAK THE EXPANSION
+;;
+;; (cl-postgres:def-row-reader clsql-default-row-reader (fields)
+;;   (values (loop :while (cl-postgres:next-row)
+;; 		:collect (loop :for field :across fields
+;; 			       :collect (cl-postgres:next-field field)))
+;; 	  (when *include-field-names*
+;; 	    (loop :for field :across fields
+;; 		  :collect (cl-postgres:field-name field)))))
+
+
+
+(defclass result-set ()
+  ((cont :accessor cont :initarg :cont :initform nil)
+   (row :accessor row :initarg :row :initform nil)))
+
+(defun make-clsql-cursoring-row-reader (results)
+  (lambda  (stream fields)
+    (declare (type stream stream)
+             (type (simple-array cl-postgres::field-description) fields))
+    (labels ((cl-postgres:next-row ()
+               (cl-postgres::look-for-row stream))
+             (cl-postgres:next-field (cl-postgres::field)
+               (declare (type cl-postgres::field-description cl-postgres::field))
+               (let ((cl-postgres::size (cl-postgres::read-int4 stream)))
+                 (declare (type (signed-byte 32) cl-postgres::size))
+                 (if (eq cl-postgres::size -1)
+                     nil
+                     (funcall (cl-postgres::field-interpreter cl-postgres::field)
+                              stream cl-postgres::size))))
+             (store-next-row ()
+               (when (cl-postgres:next-row)
+                 (setf (row results)
+                       (loop :for field :across fields
+                             :collect (cl-postgres:next-field field)))
+                 T))
+             (store-next-row-and-continue ()
+               (if (store-next-row)
+                   (setf (cont results) #'store-next-row-and-continue)
+                   (setf (cont results) nil))))
+      (setf (cont results) #'store-next-row-and-continue))))
 
 (defmethod database-query-result-set ((expression string)
                                       (database postgresql-socket3-database)
                                       &key full-set result-types)
   (declare (ignore result-types))
   (declare (ignore full-set))
-  (error "Cursoring interface is not supported for postgresql-socket3-database try cl-postgres:exec-query with a custom row-reader"))
+  (let ((connection (database-connection database))
+	(cl-postgres:*sql-readtable* *sqlreader*))
+    (with-postgresql-handlers (database expression)
+      (let ((results (make-instance 'result-set)))
+	(apply #'values (cl-postgres:exec-query
+                         connection expression
+                         (make-clsql-cursoring-row-reader results))))
+      )))
 
 (defmethod database-dump-result-set (result-set
                                      (database postgresql-socket3-database))
-  (error "Cursoring interface is not supported for postgresql-socket3-database try cl-postgres:exec-query with a custom row-reader")
-  T)
+  (if  (null (cont result-set))
+       T
+       (funcall (cont result-set))))
 
 (defmethod database-store-next-row (result-set
                                     (database postgresql-socket3-database)
                                     list)
-  (error "Cursoring interface is not supported for postgresql-socket3-database try cl-postgres:exec-query with a custom row-reader"))
+  (when (cont result-set)
+    (funcall (cont result-set))
+    (setf (elt list 0) (first (row result-set)))
+    (setf (rest list) (rest (row result-set)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
