@@ -60,9 +60,9 @@ as possible second argument) to the desired representation of date/time/timestam
               ;; this is MUCH faster than (sb-alien:deref ptr i) even though
               ;; sb-alien:deref makes more sense. I snagged this by looking at
               ;; cffi which we had used previously without this bug
-              #+sbcl
+              #+(and sbcl (not cffi))
               (sb-sys:sap-ref-8 (sb-alien:alien-sap ptr) i)
-              #-sbcl
+              #-(and sbcl (not cffi))
               (deref-array ptr '(:array :unsigned-char) i)
        ))
     (incf offset))
