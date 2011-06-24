@@ -179,6 +179,58 @@ that should, on avg keep the free connections about this size.</para>
     </refsect1>
   </refentry>
 
+<refentry id="db-pool-max-sql-op-executions">
+    <refmeta>
+      <refentrytitle>*DB-POOL-MAX-SQL-OP-EXECUTIONS*</refentrytitle>
+    </refmeta>
+    <refnamediv>
+      <refname>*DB-POOL-MAX-SQL-OP-EXECUTIONS*</refname>
+      <refpurpose>How many sql operations should a connection be allowed to run before being evicted from the pool.</refpurpose>
+      <refclass>Parameter</refclass>
+    </refnamediv>
+    <refsect1>
+      <title>Value Type</title>
+      <para>Integer</para>
+    </refsect1>
+    <refsect1>
+      <title>Initial Value</title>
+      <para>nil</para>
+    </refsect1>
+    <refsect1>
+      <title>Description</title>
+      <para>Threshold of how many sql operations to allow one
+  connection to perform before evicting it from the pool.  NIL for no
+  limit.  This is not a hard limit, this limit is only checked when
+  DISCONNECT is called (eg: at the end of WITH-DATABASE), so one
+  connection may do many more operations in its active lifetime.  This
+  is intented to assist with memory leaking drivers.</para>
+      <note>
+        <para>This is not a hard limit, the number of operations on a
+        connection may exceed this value, but it will not re-enter the
+        pool if so.</para>
+      </note>
+    </refsect1>
+    <refsect1>
+      <title>Examples</title>
+      <screen>
+	(setf clsql-sys:*db-pool-max-sql-op-executions* 128)
+      </screen>
+    </refsect1>
+    <refsect1>
+      <title>Affected By</title>
+      <para>None</para>
+    </refsect1>
+    <refsect1>
+      <title>See Also</title>
+      <para>
+        <simplelist>
+          <member><link linkend="connect"><function>connect</function></link></member>
+          <member><link linkend="disconnect"><function>disconnect</function></link></member>
+        </simplelist>
+      </para>
+    </refsect1>
+  </refentry>
+
 
   <refentry id="default-database">
     <refmeta>

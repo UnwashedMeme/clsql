@@ -163,6 +163,7 @@
      #:reload-database-types
      #:is-database-open
      #:*db-pool-max-free-connections*
+     #:*db-pool-max-sql-op-executions*
 
      ;; Large objects
      #:database-create-large-object

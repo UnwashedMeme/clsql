@@ -21,6 +21,13 @@
   database rather than returning it to the pool. This is really a heuristic
 that should, on avg keep the free connections about this size.")
 
+(defparameter *db-pool-max-sql-op-executions* nil
+  "Threshold of how many sql operations to allow one connection to perform
+  before evicting it from the pool.  NIL for no limit.  This is not a hard
+  limit, this limit is only checked when DISCONNECT is called (eg: at the end
+  of WITH-DATABASE), so one connection may do many more operations in its
+  active lifetime.  This is intented to assist with memory leaking drivers.")
+
 (defvar *db-pool* (make-hash-table :test #'equal))
 (defvar *db-pool-lock* (make-process-lock "DB Pool lock"))
 
@@ -75,6 +82,12 @@ Disconnecting.~%"
        (setf (conn-pool conn) pool))
      conn)))
 
+(defun sql-operation-limit-reached-p (database)
+  "has this database made enough operations to be evicted from the pool?"
+  (and *db-pool-max-sql-op-executions*
+       (>= (sql-operations-executed database)
+           *db-pool-max-sql-op-executions*)))
+
 (defun release-to-pool (database)
   "Release a database connection to the pool. The backend will have a
 chance to do cleanup."
@@ -86,9 +99,10 @@ chance to do cleanup."
       ;;not the list). Multiple threads getting to this test at the
       ;;same time might result in the free-connections getting
       ;;longer... meh.
-      ((and *db-pool-max-free-connections*
-	    (>= (length (free-connections pool))
-		*db-pool-max-free-connections*))
+      ((or (and *db-pool-max-free-connections*
+                (>= (length (free-connections pool))
+                    *db-pool-max-free-connections*))
+           (sql-operation-limit-reached-p database))
        (%pool-force-disconnect database)
        (with-process-lock ((conn-pool-lock pool) "Remove extra Conn")
 	 (setf (all-connections pool)

@@ -457,16 +457,32 @@ appropriate."))
   (unless (is-database-open database)
     (signal-closed-database-error database)))
 
+(defmethod database-query :after (query-expression (database database)
+                                   result-set field-names)
+  (declare (ignore query-expression result-set field-names))
+  (incf (sql-operations-executed database)))
+
+
+
 (defmethod database-execute-command :before (sql-expression (database database))
   (declare (ignore sql-expression))
   (unless (is-database-open database)
     (signal-closed-database-error database)))
+
+(defmethod database-execute-command :after (sql-expression (database database))
+  (declare (ignore sql-expression))
+  (incf (sql-operations-executed database)))
 
 (defmethod database-query-result-set :before (expr (database database)
                                             &key full-set result-types)
   (declare (ignore expr full-set result-types))
   (unless (is-database-open database)
     (signal-closed-database-error database)))
+
+(defmethod database-query-result-set :after (expr (database database)
+                                            &key full-set result-types)
+  (declare (ignore expr full-set result-types))
+  (incf (sql-operations-executed database)))
 
 (defmethod database-dump-result-set :before (result-set (database database))
   (declare (ignore result-set))
@@ -482,13 +498,22 @@ appropriate."))
   (unless (is-database-open database)
     (signal-closed-database-error database)))
 
+(defmethod database-commit-transaction :after ((database database))
+  (incf (sql-operations-executed database)))
+
 (defmethod database-start-transaction :before ((database database))
   (unless (is-database-open database)
     (signal-closed-database-error database)))
 
+(defmethod database-start-transaction :after ((database database))
+  (incf (sql-operations-executed database)))
+
 (defmethod database-abort-transaction :before ((database database))
   (unless (is-database-open database)
     (signal-closed-database-error database)))
+
+(defmethod database-abort-transaction :after ((database database))
+  (incf (sql-operations-executed database)))
 
 (defvar *foreign-library-search-paths* nil
   "A list of pathnames denoting directories where CLSQL will look
