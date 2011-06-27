@@ -49,6 +49,7 @@
 			   (:file "test-ooddl")
 			   (:file "test-oodml")
 			   (:file "test-syntax")
+                           (:file "test-pool")
                            ; #-uffi:no-i18n (:file "test-i18n")
                            ))))
 

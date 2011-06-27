@@ -144,9 +144,10 @@
     </refsect1>
     <refsect1>
       <title>Description</title>
-      <para>Threshold of free-connections in the pool before we disconnect a
-  database rather than returning it to the pool. This is really a heuristic
-that should, on avg keep the free connections about this size.</para>
+      <para>Threshold of free-connections in the pool before we
+  disconnect a database rather than returning it to the pool.  NIL for
+  no limit.  This is really a heuristic that should, on avg keep the
+  free connections about this size.</para>
       <note>
         <para>This is not a hard limit, the number of connections in
         the pool may exceed this value.</para>
