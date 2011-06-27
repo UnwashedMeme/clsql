@@ -26,6 +26,7 @@
 (defvar *rt-oodml*)
 (defvar *rt-syntax*)
 (defvar *rt-time*)
+(defvar *rt-pool*)
 ;; Below must be set as nil since test-i18n.lisp is not loaded on all platforms.
 (defvar *rt-i18n* nil)
 
@@ -74,6 +75,10 @@
   (append *rt-internal* *rt-connection* *rt-basic* *rt-fddl* *rt-fdml*
 	  *rt-ooddl* *rt-oodml* *rt-syntax* *rt-time* *rt-i18n*))
 
+(defun internal-suites ()
+  "The default internal suites that should run without any specific backend"
+  (append *rt-pool*))
+
 
 (defvar *error-count* 0)
 (defvar *error-list* nil)
@@ -97,9 +102,10 @@
 
 
 (defun run-tests (&key (report-stream *standard-output*) (sexp-report-stream nil)
-		  (suites (default-suites)))
+		  (suites (append (internal-suites) (default-suites))))
   ;; clear SQL-OUTPUT cache
   (setq clsql-sys::*output-hash* (make-hash-table :test #'equal))
+  (setf *test-database-underlying-type* nil)
   (let ((specs (read-specs))
         (*report-stream* report-stream)
         (*sexp-report-stream* sexp-report-stream)
@@ -109,11 +115,16 @@
       (warn "Not running tests because test configuration file is missing")
       (return-from run-tests :skipped))
     (load-necessary-systems specs)
-    (dolist (db-type +all-db-types+)
-      (dolist (spec (db-type-spec db-type specs))
-        (let ((*test-connection-spec* spec)
-              (*test-connection-db-type* db-type))
-          (do-tests-for-backend db-type spec :suites suites)))))
+    ;;run the internal suites
+    (do-tests-for-internals :suites (intersection suites (internal-suites)))
+    ;; run backend-specific tests
+    (let ((suites (intersection suites (default-suites))))
+      (when suites
+        (dolist (db-type +all-db-types+)
+          (dolist (spec (db-type-spec db-type specs))
+            (let ((*test-connection-spec* spec)
+                  (*test-connection-db-type* db-type))
+              (do-tests-for-backend db-type spec :suites suites)))))))
   (zerop *error-count*))
 
 (defun load-necessary-systems (specs)
@@ -147,6 +158,34 @@
               "")
           ))
 
+(defun do-tests-for-internals (&key (suites (internal-suites)))
+  (write-report-banner "Test Suite" "CLSQL Internals" *report-stream*
+                       "N/A")
+  (%do-tests suites nil))
+
+(defun %do-tests (test-forms db-type)
+  (regression-test:rem-all-tests)
+  (dolist (test-form test-forms)
+    (eval test-form))
+
+  (let* ((cl:*print-right-margin* *test-report-width*)
+         (remaining (regression-test:do-tests *report-stream*)))
+    (when (regression-test:pending-tests)
+      (incf *error-count* (length remaining))))
+
+  (let ((sexp-error (list db-type
+                          *test-database-underlying-type*
+                          (get-universal-time)
+                          (length test-forms)
+                          (regression-test:pending-tests)
+                          (lisp-implementation-type)
+                          (lisp-implementation-version)
+                          (machine-type))))
+    (when *sexp-report-stream*
+      (write sexp-error :stream *sexp-report-stream* :readably t))
+    (push sexp-error *error-list*))
+  )
+
 (defun do-tests-for-backend (db-type spec &key
 			     (suites (default-suites)) )
   (test-connect-to-database db-type spec)
@@ -157,26 +196,7 @@
            (write-report-banner "Test Suite" db-type *report-stream*
 				(database-name-from-spec spec db-type))
 
-           (regression-test:rem-all-tests)
-           (dolist (test-form test-forms)
-             (eval test-form))
-
-           (let* ((cl:*print-right-margin* *test-report-width*)
-                  (remaining (regression-test:do-tests *report-stream*)))
-             (when (regression-test:pending-tests)
-               (incf *error-count* (length remaining))))
-
-           (let ((sexp-error (list db-type
-                                   *test-database-underlying-type*
-                                   (get-universal-time)
-                                   (length test-forms)
-                                   (regression-test:pending-tests)
-                                   (lisp-implementation-type)
-                                   (lisp-implementation-version)
-                                   (machine-type))))
-             (when *sexp-report-stream*
-               (write sexp-error :stream *sexp-report-stream* :readably t))
-             (push sexp-error *error-list*))
+         (%do-tests test-forms db-type)
 
            (format *report-stream* "~&Tests skipped:")
            (if skip-tests
