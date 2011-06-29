@@ -28,13 +28,15 @@
 
 (defmethod database-name-from-spec (connection-spec
                                     (database-type (eql :odbc)))
-  (check-connection-spec connection-spec database-type (dsn user password &key connection-string completion window-handle))
+  (check-connection-spec connection-spec database-type
+      (dsn user password &key connection-string completion window-handle))
   (destructuring-bind (dsn user password &key connection-string completion window-handle) connection-spec
     (declare (ignore password connection-string completion window-handle))
     (concatenate 'string dsn "/" user)))
 
 (defmethod database-connect (connection-spec (database-type (eql :odbc)))
-  (check-connection-spec connection-spec database-type (dsn user password &key connection-string completion window-handle))
+  (check-connection-spec connection-spec database-type
+      (dsn user password &key connection-string completion window-handle))
   (destructuring-bind (dsn user password &key connection-string (completion :no-prompt) window-handle) connection-spec
     (handler-case
         (let ((db (make-instance 'odbc-database
