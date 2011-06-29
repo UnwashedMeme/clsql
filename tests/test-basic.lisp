@@ -208,18 +208,24 @@
 	    ))
       nil)
     (deftest :basic/bigtext/2
-	(dotimes (n 10)
-	  (with-dataset *ds-bigtext*
-	    (let* ((len (random 7500))
-		   (str (make-string len :initial-element #\a))
-		   (cmd (format nil "INSERT INTO testbigtext (a) VALUES ('~a')" str)))
-	      (execute-command cmd)
-	      (let ((a (first (query "SELECT a from testbigtext"
-				     :flatp t :field-names nil))))
-		(assert (string= str a) (str a)
-			"mismatch on a. inserted: ~a returned: ~a" len (length a)))
-	      )))
-      nil)
+     (flet ((random-char ()
+              (let ((alphabet "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+                    (idx (random 52)))
+                (elt alphabet idx))))
+       (dotimes (n 10)
+         (with-dataset *ds-bigtext*
+           (let* ((len (random 7500))
+                  (str (coerce (make-array len
+                                           :initial-contents (loop repeat len collect (random-char)))
+                               'string))
+                  (cmd (format nil "INSERT INTO testbigtext (a) VALUES ('~a')" str)))
+             (execute-command cmd)
+             (let ((a (first (query "SELECT a from testbigtext"
+                                    :flatp t :field-names nil))))
+               (assert (string= str a) (str a)
+                       "mismatch on randomized bigtext(~a) inserted: ~s returned: ~s" len str a))
+             ))))
+     nil)
     ))
 
 
