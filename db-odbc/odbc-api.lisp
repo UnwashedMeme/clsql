@@ -926,7 +926,7 @@ as possible second argument) to the desired representation of date/time/timestam
                                    (error 'clsql:sql-database-error :message "wrong type. preliminary."))
                             while
                             (and (= res $SQL_SUCCESS_WITH_INFO)
-                                 (> out-len +max-precision+))
+                                 (>= out-len +max-precision+))
                             do (setf res  (%sql-get-data hstmt column-nr c-type data-ptr
                                                          +max-precision+ out-len-ptr)
                                      out-len (deref-pointer out-len-ptr #.$ODBC-LONG-TYPE)))
