@@ -138,13 +138,9 @@
   (values))
 
 
-;;; THE HASH KEYS NEVER MATCH WITH 'EQUAL so this breaks everything
-
-
-
 (defvar *output-hash*
   #+sbcl
-  (make-hash-table :test #'equal :syncronized T :weakness :key-and-value)
+  (make-hash-table :test #'equal :synchronized T :weakness :key-and-value)
   #-sbcl
   (make-hash-table :test #'equal )
   "For caching generated SQL strings.")
