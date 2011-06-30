@@ -29,17 +29,17 @@
 (defmethod database-create-sequence (sequence-name database)
   (let ((table-name (%sequence-name-to-table sequence-name database)))
     (database-execute-command
-     (concatenate 'string "CREATE TABLE " table-name
+     (join "CREATE TABLE " table-name
                   " (last_value int NOT NULL PRIMARY KEY, increment_by int, min_value int, is_called char(1))")
      database)
     (database-execute-command
-     (concatenate 'string "INSERT INTO " table-name
+     (join "INSERT INTO " table-name
                   " VALUES (1,1,1,'f')")
      database)))
 
 (defmethod database-drop-sequence (sequence-name database)
   (database-execute-command
-   (concatenate 'string "DROP TABLE " (%sequence-name-to-table sequence-name database))
+   (join "DROP TABLE " (%sequence-name-to-table sequence-name database))
    database))
 
 (defun %table-name-to-sequence-name (table-name)
@@ -68,7 +68,7 @@
    (let* ((table-name (%sequence-name-to-table sequence-name database))
           (tuple
            (car (database-query
-                 (concatenate 'string "SELECT last_value,is_called FROM "
+                 (join "SELECT last_value,is_called FROM "
                               table-name)
                  database :auto nil))))
      (cond
@@ -87,6 +87,6 @@
 (defmethod database-sequence-last (sequence-name database)
   (without-interrupts
    (caar (database-query
-          (concatenate 'string "SELECT last_value FROM "
+          (join "SELECT last_value FROM "
                        (%sequence-name-to-table sequence-name database))
           database :auto nil))))

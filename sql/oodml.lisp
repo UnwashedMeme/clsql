@@ -566,10 +566,10 @@
 (defmethod database-output-sql-as-type ((type (eql 'symbol)) val database db-type)
   (declare (ignore database db-type))
   (if val
-      (concatenate 'string
-                   (package-name (symbol-package val))
-                   "::"
-                   (symbol-name val))
+      (join
+       (package-name (symbol-package val))
+       "::"
+       (symbol-name val))
       ""))
 
 (defmethod database-output-sql-as-type ((type (eql 'keyword)) val database db-type)

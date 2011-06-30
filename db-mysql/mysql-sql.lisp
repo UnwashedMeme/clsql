@@ -103,25 +103,25 @@
                          (host db user password &optional port options))
   (destructuring-bind (host db user password &optional port options) connection-spec
     (declare (ignore password options))
-    (concatenate 'string
-                 (etypecase host
-                   (null "localhost")
-                   (pathname (namestring host))
-                   (string host))
-                 (if port
-                     (concatenate 'string
-                                  ":"
-                                  (etypecase port
-                                    (integer (write-to-string port))
-                                    (string port)))
-                     "")
-                 "/" db "/" user)))
+    (clsql-sys::join
+     (etypecase host
+       (null "localhost")
+       (pathname (namestring host))
+       (string host))
+     (if port
+         (clsql-sys::join
+          ":"
+          (etypecase port
+            (integer (write-to-string port))
+            (string port)))
+         "")
+     "/" db "/" user)))
 
 (defun lookup-option-code (option)
   (if (assoc option +mysql-option-parameter-map+)
       (symbol-value (intern
-                     (concatenate 'string (symbol-name-default-case "mysql-option#")
-                                  (symbol-name option))
+                     (clsql-sys::join (symbol-name-default-case "mysql-option#")
+                                      (symbol-name option))
                      (symbol-name '#:mysql)))
       (progn
         (warn "Unknown mysql option name ~A - ignoring.~%" option)
@@ -443,18 +443,18 @@
                                      (database mysql-database))
   (let ((table-name (%sequence-name-to-table sequence-name database)))
     (database-execute-command
-     (concatenate 'string "CREATE TABLE " table-name
+     (clsql-sys::join "CREATE TABLE " table-name
                   " (id int NOT NULL PRIMARY KEY AUTO_INCREMENT)")
      database)
     (database-execute-command
-     (concatenate 'string "INSERT INTO " table-name
+     (clsql-sys::join "INSERT INTO " table-name
                   " VALUES (-1)")
      database)))
 
 (defmethod database-drop-sequence (sequence-name
                                    (database mysql-database))
   (database-execute-command
-   (concatenate 'string "DROP TABLE "
+   (clsql-sys::join "DROP TABLE "
                 (%sequence-name-to-table sequence-name database))
    database))
 
@@ -478,7 +478,7 @@
 (defmethod database-sequence-next (sequence-name (database mysql-database))
   (without-interrupts
    (database-execute-command
-    (concatenate 'string "UPDATE " (%sequence-name-to-table sequence-name database)
+    (clsql-sys::join "UPDATE " (%sequence-name-to-table sequence-name database)
                  " SET id=LAST_INSERT_ID(id+1)")
     database)
    (mysql:mysql-insert-id (clsql-mysql::database-mysql-ptr database))))
@@ -486,7 +486,7 @@
 (defmethod database-sequence-last (sequence-name (database mysql-database))
   (without-interrupts
     (caar (database-query
-           (concatenate 'string "SELECT id from "
+           (clsql-sys::join "SELECT id from "
                         (%sequence-name-to-table sequence-name database))
            database :auto nil))))
 

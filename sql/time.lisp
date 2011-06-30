@@ -395,10 +395,10 @@
                (let ((found-position (search search-string current-string :test test :start2 position)))
                  (if (null found-position)
                      current-string
-                     (sub-replace-string (concatenate 'string
-                                                      (subseq current-string 0 found-position)
-                                                      replace-string
-                                                      (subseq current-string (+ found-position search-string-length)))
+                     (sub-replace-string (join
+                                          (subseq current-string 0 found-position)
+                                          replace-string
+                                          (subseq current-string (+ found-position search-string-length)))
                                          (+ position replace-string-length))))))
       (sub-replace-string string1 0))))
 );eval-when
@@ -431,7 +431,7 @@
   "return the string to store the given time in the database"
   (if stream
       (progn (write-char #\' stream) (iso-timestring time :stream stream) (write-char #\' stream))
-      (concatenate 'string "'" (iso-timestring time) "'")))
+      (join "'" (iso-timestring time) "'")))
 
 (defun iso-timestring (time &key stream)
   (multiple-value-bind (usec sec min hour day month year dow)

@@ -48,7 +48,7 @@ is added to *INITIALIZED-DATABASE-TYPES*. "
   (when (member database-type *initialized-database-types*)
     (return-from initialize-database-type database-type))
 
-  (let ((system (intern (concatenate 'string
+  (let ((system (intern (join
                           (symbol-name '#:clsql-)
                           (symbol-name database-type)))))
     (when (not (find-package system))

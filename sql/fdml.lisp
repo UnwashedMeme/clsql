@@ -375,8 +375,7 @@ computed for each field."
                    ,@body))))))
 
 (defun query-string (fields from where distinct order-by limit)
-  (concatenate
-   'string
+  (join
    (format nil "select ~A~{~A~^,~} from ~{~A~^ and ~}"
            (if distinct "distinct " "") (field-names fields)
            (from-names from))

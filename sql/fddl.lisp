@@ -76,14 +76,14 @@ an error is signalled if IF-DOES-NOT-EXIST is :error."
       (:error
        t))
   
-    (let ((expr (concatenate 'string "DROP TABLE " (escaped-database-identifier name database))))
+    (let ((expr (join "DROP TABLE " (escaped-database-identifier name database))))
       ;; Fixme: move to clsql-oracle
       (when (and (find-package 'clsql-oracle)
                  (eq :oracle (database-type database))
                  (eql 10 (slot-value database
                                      (intern (symbol-name '#:major-server-version)
                                              (symbol-name '#:clsql-oracle)))))
-        (setq expr (concatenate 'string expr " PURGE")))
+        (setq expr (join expr " PURGE")))
 
       (execute-command expr :database database)))
 
@@ -142,7 +142,7 @@ an error is signalled if IF-DOES-NOT-EXIST is :error."
          (return-from drop-view)))
       (:error
        t))
-    (let ((expr (concatenate 'string "DROP VIEW " (escaped-database-identifier name database))))
+    (let ((expr (join "DROP VIEW " (escaped-database-identifier name database))))
       (execute-command expr :database database)))
 
 (defun list-views (&key (owner nil) (database *default-database*))

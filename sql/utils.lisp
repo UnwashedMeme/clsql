@@ -127,7 +127,7 @@
 "Substitutes a string for a single matching character of a string"
   (let ((pos (position match-char procstr)))
     (if pos
-        (concatenate 'string
+        (join
           (subseq procstr 0 pos) subst-str
           (substitute-string-for-char
            (subseq procstr (1+ pos)) match-char subst-str))
@@ -186,8 +186,8 @@
   (multiple-value-bind (output error status)
       (apply #'%command-output control-string args)
     (values
-     (concatenate 'string (if output output "")
-                  (if error error ""))
+     (join (if output output "")
+           (if error error ""))
      status)))
 
 (defun read-stream-to-string (in)
@@ -391,3 +391,28 @@ is replaced with replacement. [FROM http://cl-cookbook.sourceforge.net/strings.h
 	    while pos)
     (unless stream
       (get-output-stream-string out))))
+
+(defun join-strings (strings &optional delimiter pretty (ignore-empty-strings-and-nil t))
+  (let ((s (make-string-output-stream))
+        (*print-pretty* pretty)
+        (printed? nil))
+    (setf delimiter
+          (typecase delimiter
+            ((or null string) delimiter)
+            (t  (princ-to-string delimiter))))
+    (flet ((p (item)
+             (when (or (null ignore-empty-strings-and-nil)
+                       item)
+               (when (and printed? delimiter)
+                 (write-sequence delimiter s))
+               (typecase item
+                 (string (when (or (null ignore-empty-strings-and-nil)
+                                   (plusp (length item)))
+                           (write-sequence item s)))
+                 (T (princ item s)))
+               (setf printed? t))))
+      (mapc #'p strings)
+      (get-output-stream-string s))))
+
+(defun join (&rest strings)
+  (join-strings strings))

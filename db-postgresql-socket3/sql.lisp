@@ -105,19 +105,19 @@
   (destructuring-bind (host db user password &optional port options tty)
       connection-spec
     (declare (ignore password options tty))
-    (concatenate 'string
-      (etypecase host
-        (null
-         "localhost")
-        (pathname (namestring host))
-        (string host))
-      (when port
-        (concatenate 'string
-                     ":"
-                     (etypecase port
-                       (integer (write-to-string port))
-                       (string port))))
-      "/" db "/" user)))
+    (clsql-sys::join
+     (etypecase host
+       (null
+        "localhost")
+       (pathname (namestring host))
+       (string host))
+     (when port
+       (clsql-sys::join
+        ":"
+        (etypecase port
+          (integer (write-to-string port))
+          (string port))))
+     "/" db "/" user)))
 
 (defmethod database-connect (connection-spec
                              (database-type (eql :postgresql-socket3)))

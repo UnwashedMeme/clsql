@@ -98,9 +98,9 @@ be taken from this pool."
 
   (unless (member database-type *loaded-database-types*)
     (asdf:operate 'asdf:load-op (ensure-keyword
-                                 (concatenate 'string
-                                              (symbol-name '#:clsql-)
-                                              (symbol-name database-type)))
+                                 (join
+                                  (symbol-name '#:clsql-)
+                                  (symbol-name database-type)))
                   :verbose nil))
 
   (if pool

@@ -203,14 +203,13 @@
 
 (defmethod database-create-sequence (sequence-name
                                      (database generic-postgresql-database))
-  (let ((cmd (concatenate
-              'string "CREATE SEQUENCE " (escaped-database-identifier sequence-name database))))
+  (let ((cmd (join "CREATE SEQUENCE " (escaped-database-identifier sequence-name database))))
   (database-execute-command cmd database)))
 
 (defmethod database-drop-sequence (sequence-name
                                    (database generic-postgresql-database))
   (database-execute-command
-   (concatenate 'string "DROP SEQUENCE " (escaped-database-identifier sequence-name database))
+   (join "DROP SEQUENCE " (escaped-database-identifier sequence-name database))
    database))
 
 (defmethod database-list-sequences ((database generic-postgresql-database)
@@ -232,7 +231,7 @@
    (%get-int
     (caar
      (database-query
-      (concatenate 'string "SELECT NEXTVAL ('" (escaped-database-identifier sequence-name) "')")
+      (join "SELECT NEXTVAL ('" (escaped-database-identifier sequence-name) "')")
       database nil nil)))))
 
 (defmethod database-sequence-last (sequence-name (database generic-postgresql-database))
@@ -240,7 +239,7 @@
    (%get-int
     (caar
      (database-query
-      (concatenate 'string "SELECT LAST_VALUE FROM " (escaped-database-identifier sequence-name))
+      (join "SELECT LAST_VALUE FROM " (escaped-database-identifier sequence-name))
       database nil nil)))))
 
 (defmethod auto-increment-sequence-name (table column (database generic-postgresql-database))
@@ -408,7 +407,7 @@
 (defun binding-to-param (binding)
   (typecase binding
     (string
-     (concatenate 'string "'" (sql-escape-quotes binding) "'"))
+     (join "'" (sql-escape-quotes binding) "'"))
     (t
      binding)))
 
