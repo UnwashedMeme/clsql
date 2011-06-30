@@ -137,22 +137,33 @@
   (write-string (database-output-sql expr database) *sql-stream*)
   (values))
 
-(defvar *output-hash* (make-hash-table :test #'equal)
+
+;;; THE HASH KEYS NEVER MATCH WITH 'EQUAL so this breaks everything
+
+
+
+(defvar *output-hash*
+  #+sbcl
+  (make-hash-table :test #'equal :syncronized T :weakness :key-and-value)
+  #-sbcl
+  (make-hash-table :test #'equal )
   "For caching generated SQL strings.")
 
 (defmethod output-sql :around ((sql t) database)
-  (let* ((hash-key (output-sql-hash-key sql database))
-         (hash-value (when hash-key (gethash hash-key *output-hash*))))
-    (cond ((and hash-key hash-value)
-           (write-string hash-value *sql-stream*))
-          (hash-key
-           (let ((*sql-stream* (make-string-output-stream)))
-             (call-next-method)
-             (setf hash-value (get-output-stream-string *sql-stream*))
-             (setf (gethash hash-key *output-hash*) hash-value))
-           (write-string hash-value *sql-stream*))
-          (t
-           (call-next-method)))))
+  (if (null *output-hash*)
+      (call-next-method)
+      (let* ((hash-key (output-sql-hash-key sql database))
+             (hash-value (when hash-key (gethash hash-key *output-hash*))))
+        (cond ((and hash-key hash-value)
+               (write-string hash-value *sql-stream*))
+              (hash-key
+               (let ((*sql-stream* (make-string-output-stream)))
+                 (call-next-method)
+                 (setf hash-value (get-output-stream-string *sql-stream*))
+                 (setf (gethash hash-key *output-hash*) hash-value))
+               (write-string hash-value *sql-stream*))
+              (t
+               (call-next-method))))))
 
 (defmethod output-sql-hash-key (expr database)
   (declare (ignore expr database))
@@ -254,7 +265,9 @@
   (with-slots (qualifier name type)
       expr
     (list (and database (database-underlying-type database))
-          'sql-ident-attribute qualifier name type)))
+          'sql-ident-attribute
+          (unescaped-database-identifier qualifier)
+          (unescaped-database-identifier name) type)))
 
 ;; For SQL Identifiers for tables
 
@@ -297,7 +310,9 @@
   (with-slots (name alias)
       expr
     (list (and database (database-underlying-type database))
-          'sql-ident-table name alias)))
+          'sql-ident-table
+          (unescaped-database-identifier name)
+          (unescaped-database-identifier alias))))
 
 (defclass sql-relational-exp (%sql-expression)
   ((operator
