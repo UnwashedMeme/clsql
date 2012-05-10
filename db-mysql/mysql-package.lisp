@@ -77,6 +77,7 @@
 
      ;; functions
      #:mysql-init
+     #:mysql-library-init
      #:mysql-connect
      #:mysql-real-connect
      #:mysql-close
@@ -146,6 +147,7 @@
      #:clsql-mysql-field-name
      #:clsql-mysql-field-type
      #:clsql-mysql-field-flags
+     #:*null-string-array-pointer*
 
      #:+mysql-option-parameter-map+
      )

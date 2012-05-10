@@ -1,3 +1,9 @@
+2012-05-10  Nathan Bird  <nathan@acceleration.net>
+
+	* db-mysql/mysql-sql.lisp (database-initialize-database-type):
+	Call mysql_library_init() and restore SBCL's SIGPIPE handler
+	afterwords. Code from J.Klein
+
 2011-06-20  Nathan Bird  <nathan@acceleration.net>
 
 	* sql/time.lisp: Handle parsing already parsed objects.

@@ -76,8 +76,27 @@
         (t
          nil)))))
 
+(defvar *mysql-library-initialized-p* nil) ;; not used except for diagnostics
+
 (defmethod database-initialize-database-type ((database-type (eql :mysql)))
-  t)
+  ;; initialize the mysql library - required in multithreaded environments
+  (let ((initval (mysql:mysql-library-init 0
+					    mysql:*null-string-array-pointer*
+					    mysql:*null-string-array-pointer* )))
+    (when (plusp initval)
+      (error "mysql_library_init returned error ~A - it should return zero"
+	     initval))
+
+    ;; The mysql client library resets the sigipe handler to prevent
+    ;; broken pipes from terminating program using it.  However, sbcl
+    ;; uses sigpipe for its own purposes. This line is borrowed from
+    ;; cl-gtk2, which encountered the same problem.
+    #+sbcl (sb-unix::enable-interrupt sb-unix:sigpipe
+				      #'sb-unix::sigpipe-handler)
+    ;;
+  (setf *mysql-library-initialized-p* t)))
+
+
 
 ;;(uffi:def-type mysql-mysql-ptr-def (* mysql-mysql))
 ;;(uffi:def-type mysql-mysql-res-ptr-def (* mysql-mysql-res))
