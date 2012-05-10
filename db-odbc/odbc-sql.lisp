@@ -37,17 +37,18 @@
   (check-connection-spec connection-spec database-type (dsn user password &key connection-string completion window-handle))
   (destructuring-bind (dsn user password &key connection-string (completion :no-prompt) window-handle) connection-spec
     (handler-case
-        (let ((db (make-instance 'odbc-database
-                                 :name (database-name-from-spec connection-spec :odbc)
-                                 :database-type :odbc
-                                 :dbi-package (find-package '#:odbc-dbi)
-                                 :odbc-conn
-                                 (odbc-dbi:connect :user user
-                                                   :password password
-                                                   :data-source-name dsn
-                                                   :connection-string connection-string
-                                                   :completion completion
-                                                   :window-handle window-handle))))
+        (let ((db (clsql-sys:build-database-object
+		   'odbc-database
+		   :database-type database-type
+		   :connection-spec connection-spec
+		   :dbi-package (find-package '#:odbc-dbi)
+		   :odbc-conn
+		   (odbc-dbi:connect :user user
+				     :password password
+				     :data-source-name dsn
+				     :connection-string connection-string
+				     :completion completion
+				     :window-handle window-handle))))
           (store-type-of-connected-database db)
           ;; Ensure this database type is initialized so can check capabilities of
           ;; underlying database

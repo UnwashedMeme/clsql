@@ -1,0 +1,258 @@
+
+An attempt has been made to make clsql more threadsafe
+
+The most notable feature is that the DATABASE class has been given a
+DATABASE-DESC slot that contains a descriptor object with this name.
+This descriptor has the connection-spec, type, and name of the
+database.  It also has the caches (which are now also a separate
+object).  
+
+The DATABASE-SPEC object is now stored in the VIEW-DATABASE slot of
+database objects instead of storing the database itself, because an
+open database is not threadsafe: we don't want the database in a
+VIEW-DATABASE being used by thread #1 when thread #2 has taken control
+of the database.  When an UPDATE... method is called a suitable
+database is found or opened using the DATABASE-SPEC.  The
+DATABASE-SPEC in the DATABASE is temporarily replaced with this
+DATABASE-SPEC (containing its own cache) for the duration of use. This
+is most efficient with pools.  If UPDATE-... methods are called with a
+specified :DATABASE, then this datbase is checked against the
+DATABASE-SPEC in the VIEW-DATABASE slot, and is used if it is in
+agrement, avoiding opening an extra database.
+
+The DATABASE now contains a THREAD slot and a LOCK slot to allow a
+thread to transparently reserve a database for its use upon CONNECT;
+it is freed by DISCONNECTing the database or returning it to the pool.  It
+is not allowed for a non-owning thread to use another thread's
+database, and such use generates an error.
+
+Locking is now done when modifying *connected-databases*,
+claiming a database for a thread, or modifying caches.
+
+One hopes that none of these changes affects the public interface for
+CLSQL, except for throwing an error on cross-thread use of
+connections, which is arguably risky.
+
+
+
+Detailed changes are:
+
+* mysql/mysql-api.lisp
+ 
+  define mysql-thread-init, mysql-thread-end, mysql-library-init foreign functions,
+  and mysql:*null-string-array-pointer* 
+
+* mysql/mysql-sql.lisp
+
+  database-initialize-database-type for :mysql now calls mysql::mysql-library-init 
+  
+
+  It also does
+    #+sbcl (sb-unix::enable-interrupt sb-unix:sigpipe 
+				      #'sb-unix::sigpipe-handler)
+  which seems to fix the problem of mysql disabling SBCL's use of sigpipe; 
+  Control-C now works during database accesss. No bad effects have been observed
+  on a long-running Linux sbcl+mysql process with many threads.
+
+
+* sql/threads.lisp introduces the methods 
+
+      (database-init-thread database-name)
+      (database-cleanup-thread database-name)
+
+  These are to be called before the first and after the last database
+  access in a thread, and perform any specialized inits and cleanups
+  for the database-type (eg, :MYSQL).
+
+  There are also functions 
+   
+      (init-thread) 
+      (cleanup-thread)
+
+   which do the same for each currently loaded database.
+
+
+   The macro 
+    
+     (with-clsql-thread		
+         (stuff-to-do-in-thread ..))
+
+   runs (init-thread) and unwind protects (cleanup-thread)
+
+   It is understandable that forcing users to run per-thread
+   functions is not optimal, but some databases require
+   initializions and shutdowns to avoid memory leaks.  Thus it is
+   arguably best to have this as an option that users can ignore at
+   their own risk. 
+
+   PROBLEM: What if a thread autoloads a new backend? Then
+   (init-thread) won't know about it.  Users have to pre-load the
+   backend before launching threads. Autoloading of back-ends seems
+   like a not-so-great idea anyway, because it is finicky with respect
+   to libraries.
+
+* db-mysql/mysql-sql.lisp
+
+  the mysql-db back end has the method (initialize-database-type :mysql) run
+  mysql_library_init(), and 
+
+     * (database-init-thread :mysql) runs mysql_thread_init()
+     * (database-cleanup-thread :mysql) runs mysql_thread_end()
+
+* sql/utils.lisp 
+
+  has acquired new functions (current-thread) and (thread-alive-p) -
+  could also have used bordeaux-threads, if another package dependency
+  is OK
+
+* sql/base-classes.lisp 
+ 
+  The connection details have been cloned from the DATABASE class into
+  a DATABASE-DESC class.  The idea is that a DATABASE-DESC may be put
+  into the view-datbase slot of objects, and it will be used to obtain
+  a valid database by UPDATE-RECORDS-XXX.  Then there won't be a risk
+  of clashing threads.  The DATABASE class still contains them,
+  as a useful cross-check.  A DATABASE should never contain a	
+  DATABASE-SPEC that does agree with its type and connection-spec.
+
+  In effect, it is now possible to separate a description of the 
+  connection from the database object, and keep it without holding
+  on to a live connection.
+
+  The caches have migrated into DATABASE-CACHE, which is inside DATABASE-DESC,
+  and accesses to DATABASE-CACHE are protected by locks.  So a single 
+  DATBASE-DESC (with its cache) can be used by several threads.
+
+  The recording streams have migrated into DATABASE-RECORDER inside
+  DATABASE-DESC.  DATABASE-RECORDER is locked by recording functions
+  because a single recorder could conceivably be shared by several
+  DATABASEs, DATABASE-DESCs, and threads.
+
+  the database class has acquired two additional slots
+   1. LOCK, to allow locking of accesses to database
+   2. THREAD, so that a thread can mark a database as belonging to itself,
+      so it doesn't get used by another thread. This is done by CONNECT
+      and the pool functions.  Connecting a database or taking one from 
+      the pool marks it for use by current thread, and DISCONNECT 
+      unmarks it.
+
+* sql/recording.lisp
+
+  locks have been placed around recordign functions, using
+  (RECORDER-LOCK (DATABASE-RECORDER (DATABASE-DESC DATABASE)))
+
+  START-SQL-REPORTING and STOP-SQL-RECORDING now work on a 
+  DATABASE-DESC as well, because a database-desc in a 
+  view-database slot could have been plucked from a pool, with
+  recording still on.   This will turn on/off recording for all
+  databases and threads that are using this DATABASE-DESC.
+
+* sql/database.lisp
+
+    These new 
+
+    (acquire-database-for-thread db) 
+        - mark a database db as belonging to this thread, with locking 
+    (release-database-for-thread db) 
+        - un-mark a database ..
+    (current-thread-owns-database-p db) 
+        - return T if the current thread owns the datbase
+    (current-thread-owns-database-or-error)
+         - throw an sql-database-error if the current thread does not own the database
+
+    *connected-databases* is now protected with a lock, fixing an open
+    issue mentioned in a comment   
+    
+
+    (find-database ..) now has a keyword ACQUIRE-FOR-THREAD which is
+    true by default.  When set, find-database returns only those
+    databases that can be safely acquired for this thread, ie, those
+    without an owning thread, or owned by this thread, and acquired it
+    for this thread.  If ACQUIRE-FOR-THREAD is NIL, then it returns
+    any database.  However, if another kwyword
+    ALLOWED-OWNED-BY-OTHER-THREAD is T, then it forces a grab of the
+    first matching database, stealing it from its thread.  This is is
+    horrible, but seems necessary to allow the complex edge cases.
+
+    (connect ..) now uses find-database to get only databases OK for
+    this thread, or creates databases acquired for this thread.
+
+    (disconnect ...) now releases the database from its owning thread.   
+    It has a new keyword argument ALLOW-NON-OWNER-THREAD-TO-DISCONNECT that is NIL by
+    default.  This is to prevent a non-owning thread from disconnecting another thread's
+    connection. 
+    	
+    (with-database-for-database-desc (db-desc) ...) is a macro
+    that takes a database-desc (like in a view-database slot) and 
+    gets a corresponding database valid for this thread.  It is used
+    extensively in oodml.lisp	
+ 
+* db-xxx/xxx-sql.lisp  (all back ends)
+
+    Instances of (make-instance 'database-xxx) have been changed
+    to use database-desc objects to contain the database details
+
+    
+
+   
+* sql/pool.lisp
+
+    acquire-from-pool now requires that a database satisfies (acquire-database-for-thread db),
+    but this should always happen because disconnect-pooled releases the database from
+    its thread.
+
+    Some commented out functions and macros have been deleted.
+
+* sql/fddl.lisp
+
+  (with-database-cache-locked ..) placed around attribute-hash accesses
+
+
+* sql/oodml.lisp
+ 
+  uses of (view-database ...) replaced with
+   (with-database-for-database-desc (xx (view-database ..))
+      ...)
+  so that a database that does not belong to this thread is
+  never used by UPDATE-RECORDS ... functions
+
+  In cases when the database can be supplied as a keyword,
+  (WITH-DATABASE-FOR-DB-OR-DB-DESC ((VIEW-DATABASE OBJ) DATABASE)
+     ....)
+  macro performs intelligent (?) selection of a database
+  using the DATABASE-DESC inside VIEW-DATABASE, or DATABASE.
+
+  Some more :DATABASE keywords are added to internal functions,
+  so that they don't have to use the view-database database-desc
+  to find a working database, but can use the valid database
+  their parent is using.  
+
+
+* sql/conditions.lisp 
+
+  (signal-wrong-thread-database-error database) throws an error for
+  using a database in a thread that hasn't claimed possession
+
+  (signal-mismatched-database-desc-error) throws an error if the database-desc
+  somehow does not agree with the database it is.  This should never happen.
+
+* sql/db-interface.lisp 
+  
+  the checks for closed databases (:before methods) have been augmented
+  with checks for using a database in the wrong thread.
+
+
+*tests/README 
+
+  changed to include an example config file. 
+
+* THREADS-20012-04
+
+  this file added to toplevel
+
+* thread-test.lisp
+
+  a short test file for sbcl.  The function (test-mod-in-thread) shows
+  how the DATABASE-DESC mechanism in the VIEW-DATABASE slot may be
+  safely (one hopes) used by competing threads to modify an object
+  without crashing (one hopes).

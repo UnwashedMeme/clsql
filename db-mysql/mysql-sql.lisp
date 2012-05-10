@@ -20,6 +20,8 @@
 
 (in-package #:clsql-mysql)
 
+
+
 ;;; Field conversion functions
 
 (defun result-field-names (res-ptr)
@@ -76,8 +78,44 @@
         (t
          nil)))))
 
+(defvar *mysql-library-initialized-p* nil) ;; not used except for diagnostics
+
 (defmethod database-initialize-database-type ((database-type (eql :mysql)))
-  t)
+  ;; initialize the mysql library - required in multithreaded environments
+  (let ((initval (mysql:mysql-library-init 0 
+					    mysql:*null-string-array-pointer* 
+					    mysql:*null-string-array-pointer* )))
+    (when (plusp initval) 
+      (error "mysql_library_init returned error ~A - it should return zero" 
+	     initval))
+
+    ;; The mysql client library resets the sigipe handler to prevent
+    ;; broken pipes from terminating program using it.  However, sbcl
+    ;; uses sigpipe for its own purposes. This line is borrowed from
+    ;; cl-gtk2, which encountered the same problem.
+    #+sbcl (sb-unix::enable-interrupt sb-unix:sigpipe 
+				      #'sb-unix::sigpipe-handler)
+    ;;
+  (setf *mysql-library-initialized-p* t)))
+
+
+
+(defmethod database-init-thread ((database-type (eql :mysql)))
+  ;; allocate thread-local memory for mysql - according to mysql
+  ;; docs, a failure to to do this can result in coredumps
+  (when (clsql-sys:database-type-library-loaded :mysql)
+    (mysql:mysql-thread-init)))
+
+
+(defmethod database-cleanup-thread ((database-type (eql :mysql)))
+  ;; release the thread-local memory to prevent memory leaks
+  (when (clsql-sys:database-type-library-loaded :mysql)
+    (mysql:mysql-thread-end)))
+
+
+
+
+
 
 ;;(uffi:def-type mysql-mysql-ptr-def (* mysql-mysql))
 ;;(uffi:def-type mysql-mysql-res-ptr-def (* mysql-mysql-res))
@@ -198,14 +236,13 @@
                              :error-id (mysql-errno mysql-ptr)
                              :message (mysql-error-string mysql-ptr)))
                     (let* ((db
-                            (make-instance 'mysql-database
-                                           :name (database-name-from-spec connection-spec
-                                                                          database-type)
-                                           :database-type :mysql
-                                           :connection-spec connection-spec
-                                           :server-info (uffi:convert-from-cstring
-                                                         (mysql:mysql-get-server-info mysql-ptr))
-                                           :mysql-ptr mysql-ptr))
+                            (clsql-sys:build-database-object
+			     'mysql-database
+			     :database-type :mysql
+			     :connection-spec connection-spec
+			     :server-info (uffi:convert-from-cstring
+					   (mysql:mysql-get-server-info mysql-ptr))
+			     :mysql-ptr mysql-ptr))
                            (cmd "SET SESSION sql_mode='ANSI'"))
                       (uffi:with-cstring (cmd-cs cmd)
                         (if (zerop (mysql-real-query mysql-ptr cmd-cs (uffi:foreign-encoded-octet-count

@@ -46,14 +46,15 @@
   #+aodbc-v2
   (destructuring-bind (dsn user password) connection-spec
     (handler-case
-        (make-instance 'aodbc-database
-          :name (database-name-from-spec connection-spec :aodbc)
-          :database-type :aodbc
-          :dbi-package (find-package '#:dbi)
-          :odbc-conn
-          (dbi:connect :user user
-                       :password password
-                       :data-source-name dsn))
+        (clsql-sys:build-database-object
+	 'aodbc-database
+	 :database-type database-type
+	 :connection-spec connection-spec
+	 :dbi-package (find-package '#:dbi)
+	 :odbc-conn
+	 (dbi:connect :user user
+		      :password password
+		      :data-source-name dsn))
       (sql-error (e)
         (error e))
       (error ()         ;; Init or Connect failed

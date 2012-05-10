@@ -46,11 +46,11 @@
                 (progn
                   (sqlite3:sqlite3-close db)
                   (error c)))))
-          (make-instance 'sqlite3-database
-                         :name (database-name-from-spec connection-spec :sqlite3)
-                         :database-type :sqlite3
-                         :connection-spec connection-spec
-                         :sqlite3-db db))
+          (clsql-sys:build-database-object
+	   'sqlite3-database
+	   :database-type database-type
+	   :connection-spec connection-spec
+	   :sqlite3-db db))
       (sqlite3:sqlite3-error (err)
         (error 'sql-connection-error
                :database-type database-type

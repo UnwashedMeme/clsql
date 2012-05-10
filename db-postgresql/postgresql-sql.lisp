@@ -133,12 +133,11 @@
                    :connection-spec connection-spec
                    :error-id pqstatus
                    :message  pqmessage)))
-        (make-instance 'postgresql-database
-                       :name (database-name-from-spec connection-spec
-                                                      database-type)
-                       :database-type :postgresql
-                       :connection-spec connection-spec
-                       :conn-ptr connection)))))
+        (clsql-sys:build-database-object 
+	 'postgresql-database
+	 :database-type database-type
+	 :connection-spec connection-spec
+	 :conn-ptr connection)))))
 
 
 (defmethod database-disconnect ((database postgresql-database))

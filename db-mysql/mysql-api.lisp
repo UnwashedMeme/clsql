@@ -126,6 +126,12 @@
 (uffi:def-foreign-type mysql-mysql-res (* :void))
 (uffi:def-foreign-type mysql-field (* :void))
 (uffi:def-foreign-type mysql-bind (* :void))
+(uffi:def-foreign-type string-array  (* (* :char)))      
+
+
+
+;; for mysql_library_init
+(defvar *null-string-array-pointer* (uffi:make-null-pointer '(* :char)))
 
 ;;;; The Foreign C routines
 (declaim (inline mysql-init))
@@ -133,6 +139,32 @@
   ((mysql mysql-mysql))
   :module "mysql"
   :returning mysql-mysql)
+
+;; the global initialization that is optional in
+;; single threaded mode, but must be run in multithreaded mode
+(uffi:def-function ("mysql_server_init" ;; in accordance with mysql/mysql.h - sigh
+		    mysql-library-init) 
+    ((argc :int)
+     (argv  '(* (* :char)))
+     (groups  '(* (* :char))))
+  :module "mysql"
+  :returning :int)
+
+;; per-thread initialization to set up memory
+(declaim (inline mysql-thread-init))
+(uffi:def-function "mysql_thread_init"
+    ()
+  :module "mysql"
+  :returning :void)
+
+;; per-thread shutdown to release memory
+(declaim (inline mysql-thread-end))
+(uffi:def-function "mysql_thread_end"
+    ()
+  :module "mysql"
+  :returning :void)
+
+
 
 ;; Need to comment this out for LW 4.2.6
 ;; ? bug in LW version

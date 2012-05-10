@@ -107,18 +107,35 @@ connection is no longer usable."))
 
 ;; Signal conditions
 
-(defun signal-closed-database-error (database)
+(defun signal-closed-database-error (database  &optional (where "<unknown-location>"))
   (error 'sql-fatal-error
          :database database
          :connection-spec (when database (connection-spec database))
          :database-type (when database (database-type database))
-         :message "Database is closed."))
+         :message (format nil "Database is closed at location ~A" where)))
 
-(defun signal-no-database-error (database)
+(defun signal-wrong-thread-database-error (database &optional (where "<unknown-location>"))
+  (error 'sql-fatal-error
+         :database database
+         :connection-spec (when database (connection-spec database))
+         :database-type (when database (database-type database))
+         :message (format 
+		   nil
+		   "Database is being used in a thread that doesn't own it at ~A"
+		   where)))
+  
+
+(defun signal-no-database-error (database  &optional (where "<unknown-location>"))
   (error 'sql-database-error
          :database database
-         :message (format nil "~A is not a database." database)))
+         :message (format nil "~A is not a database at ~A" database where)))
 
+
+(defun signal-mismatched-database-desc-error (database  &optional (where "<unknown-location>"))
+  (error 'sql-database-error
+	 :database database
+	 :message (format nil "DATABASE-DESC in database ~A is not of correct type at ~A.
+This should not happen." database where)))
 
 ;;; CLSQL Extensions
 

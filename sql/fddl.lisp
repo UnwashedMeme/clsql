@@ -276,32 +276,33 @@ is applied to all tables if TABLE is t. Alternativly, when TABLE
 is :default, the default caching action specified by
 *CACHE-TABLE-QUERIES-DEFAULT* is applied to all table for which a
 caching action has not been explicitly set."
-  (with-slots (attribute-cache) database
-    (cond
-      ((stringp table)
-       (multiple-value-bind (val found) (gethash table attribute-cache)
-         (cond
-           ((and found (eq action :flush))
-            (setf (gethash table attribute-cache) (list t nil)))
-           ((and found (eq action t))
-            (setf (gethash table attribute-cache) (list t (second val))))
-           ((and found (null action))
-            (setf (gethash table attribute-cache) (list nil nil)))
-           ((not found)
-            (setf (gethash table attribute-cache) (list action nil))))))
-      ((eq table t)
-       (maphash (lambda (k v)
-                  (cond
-                    ((eq action :flush)
-                     (setf (gethash k attribute-cache) (list t nil)))
-                    ((null action)
-                     (setf (gethash k attribute-cache) (list nil nil)))
-                    ((eq t action)
-                     (setf (gethash k attribute-cache) (list t (second v))))))
-                attribute-cache))
-      ((eq table :default)
-       (maphash (lambda (k v)
-                  (when (eq (first v) :unspecified)
+  (with-database-cache-locked (database "cache-table-queries")
+    (let ((attribute-cache (attribute-cache database)))
+      (cond
+	((stringp table)
+	 (multiple-value-bind (val found) (gethash table attribute-cache)
+	   (cond
+	     ((and found (eq action :flush))
+	      (setf (gethash table attribute-cache) (list t nil)))
+	     ((and found (eq action t))
+	      (setf (gethash table attribute-cache) (list t (second val))))
+	     ((and found (null action))
+	      (setf (gethash table attribute-cache) (list nil nil)))
+	     ((not found)
+	      (setf (gethash table attribute-cache) (list action nil))))))
+	((eq table t)
+	 (maphash (lambda (k v)
+		    (cond
+		      ((eq action :flush)
+		       (setf (gethash k attribute-cache) (list t nil)))
+		      ((null action)
+		       (setf (gethash k attribute-cache) (list nil nil)))
+		      ((eq t action)
+		       (setf (gethash k attribute-cache) (list t (second v))))))
+		  attribute-cache))
+	((eq table :default)
+	 (maphash (lambda (k v)
+		    (when (eq (first v) :unspecified)
                     (cond
                       ((eq action :flush)
                        (setf (gethash k attribute-cache) (list t nil)))
@@ -309,8 +310,8 @@ caching action has not been explicitly set."
                        (setf (gethash k attribute-cache) (list nil nil)))
                       ((eq t action)
                        (setf (gethash k attribute-cache) (list t (second v)))))))
-                attribute-cache))))
-  (values))
+		  attribute-cache))))
+    (values)))
 
 
 (defun list-attributes (name &key (owner nil) (database *default-database*))
@@ -352,31 +353,32 @@ lists where the first element is the name of the attribute, the
 second element is its SQL type, the third is the type precision,
 the fourth is the scale of the attribute and the fifth is 1 if
 the attribute accepts null values and otherwise 0."
-  (with-slots (attribute-cache) database
-    (let ((table-ident (database-identifier table database)))
-      (multiple-value-bind (val found) (gethash table-ident attribute-cache)
-        (if (and found (second val))
-            (second val)
-            (let ((types (mapcar #'(lambda (attribute)
-                                     (cons attribute
-                                           (multiple-value-list
-                                            (database-attribute-type
-                                             (database-identifier attribute
-                                                                  database)
-                                             table-ident
-                                             database
-                                             :owner owner))))
-                                 (list-attributes table :database database
-                                                  :owner owner))))
-              (cond
-                ((and (not found) (eq t *cache-table-queries-default*))
-                 (setf (gethash table-ident attribute-cache)
-                       (list :unspecified types)))
-                ((and found (eq t (first val))
-                      (setf (gethash table-ident attribute-cache)
-                            (list t types)))))
-              types))))))
-
+  (with-database-cache-locked (database "cache-table-queries")
+    (let ((attribute-cache (attribute-cache database)))
+      (let ((table-ident (database-identifier table database)))
+	(multiple-value-bind (val found) (gethash table-ident attribute-cache)
+	  (if (and found (second val))
+	      (second val)
+	      (let ((types (mapcar #'(lambda (attribute)
+				       (cons attribute
+					     (multiple-value-list
+					      (database-attribute-type
+					       (database-identifier attribute
+								    database)
+					       table-ident
+					       database
+					       :owner owner))))
+				   (list-attributes table :database database
+						    :owner owner))))
+		(cond
+		  ((and (not found) (eq t *cache-table-queries-default*))
+		   (setf (gethash table-ident attribute-cache)
+			 (list :unspecified types)))
+		  ((and found (eq t (first val))
+			(setf (gethash table-ident attribute-cache)
+			      (list t types)))))
+		types)))))))
+  
 
 ;; Sequences
 

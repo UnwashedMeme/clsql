@@ -179,12 +179,11 @@
                :message (postgresql-condition-message c)))
       (:no-error (connection)
                  ;; Success, make instance
-                 (make-instance 'postgresql-socket-database
-                                :name (database-name-from-spec connection-spec
-                                                               database-type)
-                                :database-type :postgresql-socket
-                                :connection-spec connection-spec
-                                :connection connection)))))
+	(clsql-sys:build-database-object
+	 'postgresql-socket-database
+	 :database-type database-type
+	 :connection-spec connection-spec
+	 :connection connection)))))
 
 (defmethod database-disconnect ((database postgresql-socket-database))
   (close-postgresql-connection (database-connection database))

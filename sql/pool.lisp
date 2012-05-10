@@ -24,6 +24,10 @@ that should, on avg keep the free connections about this size.")
 (defvar *db-pool* (make-hash-table :test #'equal))
 (defvar *db-pool-lock* (make-process-lock "DB Pool lock"))
 
+(defmacro with-pool-lock ((desc) &body body)
+    `(with-process-lock (*db-pool-lock* desc) 
+       ,@body))
+
 (defclass conn-pool ()
   ((connection-spec :accessor connection-spec :initarg :connection-spec)
    (database-type :accessor pool-database-type :initarg :pool-database-type)
@@ -31,6 +35,8 @@ that should, on avg keep the free connections about this size.")
    (all-connections :accessor all-connections :initform nil)
    (lock :accessor conn-pool-lock
 	 :initform (make-process-lock "Connection pool"))))
+
+
 
 
 (defun acquire-from-pool (connection-spec database-type &optional pool encoding)
@@ -48,8 +54,14 @@ command to put the connection back into its default state."
 	 ;; test if connection still valid.
 	 ;; (e.g. db reboot -> invalid connection )
 	 (handler-case
-	     (progn (database-acquire-from-conn-pool pconn)
-		    pconn)
+	     (progn 
+	       (and
+		;; acquire the database for this thread - should ALWAYS return 
+		;; T because its from the free-connections list, but we double check
+		(or (acquire-database-for-thread pconn)
+		    (error "in ACQUIRE-FOR-POOL, ACQUIRE-DATABASE-FOR-THREAD returned NIL. This should not happen"))
+		(database-acquire-from-conn-pool pconn))
+	       pconn)
 	   (sql-database-error (e)
 	     ;; we could check for a specific error,
 	     ;; but, it's safer just to disconnect the pooled conn for any error ?
@@ -61,6 +73,8 @@ Disconnecting.~%"
 	     ;;there, then remove it from the lists of connected
 	     ;;databases.
 	     (%pool-force-disconnect pconn)
+	     ;; release not needed, but don't leave thread in pconn
+	     (release-database-for-thread pconn) 
 	     (with-process-lock ((conn-pool-lock pool) "remove dead conn")
 	       (setf (all-connections pool)
 		     (delete pconn (all-connections pool))))
@@ -78,6 +92,7 @@ Disconnecting.~%"
 (defun release-to-pool (database)
   "Release a database connection to the pool. The backend will have a
 chance to do cleanup."
+  (release-database-for-thread database) ;; its owner thread gives it up
   (let ((pool (conn-pool database)))
     (cond
       ;;We read the list of free-connections outside the lock. This
@@ -131,7 +146,7 @@ chance to do cleanup."
 (defun find-or-create-connection-pool (connection-spec database-type)
   "Find connection pool in hash table, creates a new connection pool
 if not found"
-  (with-process-lock (*db-pool-lock* "Find-or-create connection")
+  (with-pool-lock ("Find-or-create connection")
     (let* ((key (list connection-spec database-type))
 	   (conn-pool (gethash key *db-pool*)))
       (unless conn-pool
@@ -144,7 +159,7 @@ if not found"
 (defun disconnect-pooled (&optional clear)
   "Disconnects all connections in the pool. When clear, also deletes
 the pool objects."
-  (with-process-lock (*db-pool-lock* "Disconnect pooled")
+  (with-pool-lock ("Disconnect pooled")
     (maphash
      #'(lambda (key conn-pool)
 	 (declare (ignore key))
@@ -157,26 +172,10 @@ the pool objects."
   "Force disconnection of a connection from the pool."
   ;;so it isn't just returned to pool
   (setf (conn-pool database) nil)
+  (release-database-for-thread database)
   ;; disconnect may error if remote side closed connection
-  (ignore-errors (disconnect :database database)))
+  (ignore-errors (disconnect :database database
+			     ;; this is a forced disconnect, so allow
+			     ;; any thread to do it
+			     :allow-non-owner-thread-to-disconnect t)))
 
-;(defun pool-start-sql-recording (pool &key (types :command))
-;  "Start all stream in the pool recording actions of TYPES"
-;  (dolist (con (pool-connections pool))
-;    (start-sql-recording :type types
-;                        :database (connection-database con))))
-
-;(defun pool-stop-sql-recording (pool &key (types :command))
-;  "Start all stream in the pool recording actions of TYPES"
-;  (dolist (con (pool-connections pool))
-;    (stop-sql-recording :type types
-;                         :database (connection-database con))))
-
-;(defmacro with-database-connection (pool &body body)
-;  `(let ((connection (obtain-connection ,pool))
-;         (results nil))
-;    (unwind-protect
-;         (with-database ((connection-database connection))
-;           (setq results (multiple-value-list (progn ,@body))))
-;      (release-connection connection))
-;    (values-list results)))
