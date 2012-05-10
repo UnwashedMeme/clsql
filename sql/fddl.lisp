@@ -276,7 +276,8 @@ is applied to all tables if TABLE is t. Alternativly, when TABLE
 is :default, the default caching action specified by
 *CACHE-TABLE-QUERIES-DEFAULT* is applied to all table for which a
 caching action has not been explicitly set."
-  (with-slots (attribute-cache) database
+  (with-database-cache-locked (database "cache-table-queries")
+    (let ((attribute-cache (attribute-cache database)))
     (cond
       ((stringp table)
        (multiple-value-bind (val found) (gethash table attribute-cache)
@@ -310,7 +311,7 @@ caching action has not been explicitly set."
                       ((eq t action)
                        (setf (gethash k attribute-cache) (list t (second v)))))))
                 attribute-cache))))
-  (values))
+    (values)))
 
 
 (defun list-attributes (name &key (owner nil) (database *default-database*))
@@ -352,7 +353,8 @@ lists where the first element is the name of the attribute, the
 second element is its SQL type, the third is the type precision,
 the fourth is the scale of the attribute and the fifth is 1 if
 the attribute accepts null values and otherwise 0."
-  (with-slots (attribute-cache) database
+  (with-database-cache-locked (database "cache-table-queries")
+    (let ((attribute-cache (attribute-cache database)))
     (let ((table-ident (database-identifier table database)))
       (multiple-value-bind (val found) (gethash table-ident attribute-cache)
         (if (and found (second val))
@@ -375,7 +377,7 @@ the attribute accepts null values and otherwise 0."
                 ((and found (eq t (first val))
                       (setf (gethash table-ident attribute-cache)
                             (list t types)))))
-              types))))))
+		types)))))))
 
 
 ;; Sequences

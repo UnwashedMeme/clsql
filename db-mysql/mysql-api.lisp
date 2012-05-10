@@ -150,6 +150,19 @@
   :module "mysql"
   :returning :int)
 
+;; per-thread initialization to set up memory
+(declaim (inline mysql-thread-init))
+(uffi:def-function "mysql_thread_init"
+    ()
+  :module "mysql"
+  :returning :void)
+
+;; per-thread shutdown to release memory
+(declaim (inline mysql-thread-end))
+(uffi:def-function "mysql_thread_end"
+    ()
+  :module "mysql"
+  :returning :void)
 
 ;; Need to comment this out for LW 4.2.6
 ;; ? bug in LW version

@@ -46,9 +46,10 @@
   #+aodbc-v2
   (destructuring-bind (dsn user password) connection-spec
     (handler-case
-        (make-instance 'aodbc-database
-          :name (database-name-from-spec connection-spec :aodbc)
-          :database-type :aodbc
+        (clsql-sys:build-database-object
+	 'aodbc-database
+	 :database-type database-type
+	 :connection-spec connection-spec
           :dbi-package (find-package '#:dbi)
           :odbc-conn
           (dbi:connect :user user

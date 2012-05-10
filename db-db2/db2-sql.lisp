@@ -32,9 +32,10 @@
   (check-connection-spec connection-spec database-type (dsn user password))
   (destructuring-bind (server user password) connection-spec
     (handler-case
-        (let ((db (make-instance 'db2-database
-                    :name (database-name-from-spec connection-spec :db2)
-                    :database-type :db2)))
+        (let ((db (clsql-sys:build-database-object
+		   'db2-database
+		   :database-type database-type
+		   :connection-spec connection-spec))))
           (db2-connect db server user password)
           db)
       (error ()         ;; Init or Connect failed

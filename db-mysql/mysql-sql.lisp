@@ -20,6 +20,8 @@
 
 (in-package #:clsql-mysql)
 
+
+
 ;;; Field conversion functions
 
 (defun result-field-names (res-ptr)
@@ -96,6 +98,18 @@
     ;;
   (setf *mysql-library-initialized-p* t)))
 
+
+(defmethod database-init-thread ((database-type (eql :mysql)))
+  ;; allocate thread-local memory for mysql - according to mysql
+  ;; docs, a failure to to do this can result in coredumps
+  (when (clsql-sys:database-type-library-loaded :mysql)
+    (mysql:mysql-thread-init)))
+
+
+(defmethod database-cleanup-thread ((database-type (eql :mysql)))
+  ;; release the thread-local memory to prevent memory leaks
+  (when (clsql-sys:database-type-library-loaded :mysql)
+    (mysql:mysql-thread-end)))
 
 
 ;;(uffi:def-type mysql-mysql-ptr-def (* mysql-mysql))
@@ -217,9 +231,8 @@
                              :error-id (mysql-errno mysql-ptr)
                              :message (mysql-error-string mysql-ptr)))
                     (let* ((db
-                            (make-instance 'mysql-database
-                                           :name (database-name-from-spec connection-spec
-                                                                          database-type)
+                            (clsql-sys:build-database-object
+			     'mysql-database
                                            :database-type :mysql
                                            :connection-spec connection-spec
                                            :server-info (uffi:convert-from-cstring

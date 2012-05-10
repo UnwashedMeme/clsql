@@ -119,6 +119,63 @@
                                                       (ignore lock desc))
   #-(or cmu allegro lispworks openmcl sb-thread scl) `(progn ,@body))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; the following logic is taken from bordeaux-threads
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  #+(or armedbear
+        (and allegro multiprocessing)
+        (and clisp mt)
+        (and openmcl openmcl-native-threads)
+        (and cmu mp)
+        corman
+        (and ecl threads)
+        lispworks
+        (and digitool ccl-5.1)
+        (and sbcl sb-thread)
+        scl)
+  (pushnew :clsql-threaded *features*))
+
+(defun current-thread ()
+  "Return the current thread."
+  #+(and clsql-threaded armedbear) (threads:current-thread)
+  #+(and clsql-threaded allegro)   mp:*current-process*
+  #+(and clsql-threaded clisp)     (mt:current-thread)
+  #+(and clsql-threaded openmcl)   ccl:*current-process*
+  #+(and clsql-threaded cmu)       mp:*current-process*
+  #+(and clsql-threaded corman)    threads:*current-thread*
+  #+(and clsql-threaded ecl)       mp::*current-process*
+  #+(and clsql-threaded lispworks) mp:*current-process*
+  #+(and clsql-threaded digitool)  ccl:*current-process*
+  #+(and clsql-threaded sbcl)      sb-thread:*current-thread*
+  #+(and clsql-threaded scl)       thread:*thread*
+  #-clsql-threaded NIL)
+
+;; test whether a thread is alive. If an implementation does not
+;; have this, then failure to close a database connection by a exited
+;; thread means that the database connection is forever leaked, or
+;; least until the database closes it.
+(defun thread-alive-p (thread)
+  #+(and clsql-threaded armedbear) (threads:thread-alive-p thread)
+  #+(and clsql-threaded allegro)   (mp:process-alive-p thread)
+  #+(and clsql-threaded clisp)     (mt:thread-active-p thread)
+  #+(and clsql-threaded openmcl)   (ccl::process-active-p thread)
+  #+(and clsql-threaded cmu)       (mp:process-active-p thread)
+  #+(and clsql-threaded corman)    T ;; PROBLEM - Corman doesn't have this??
+  #+(and clsql-threaded ecl)       (mp:process-active-p thread)
+  #+(and clsql-threaded lispworks) (mp:process-alive-p thread)
+  #+(and clsql-threaded digitool)  T ;; PROBLEM - MCL doesn't have this??
+  #+(and clsql-threaded sbcl)      (sb-thread:thread-alive-p thread)
+  #+(and clsql-threaded scl)       (mp:process-alive-p thread)
+  #-clsql-threaded t)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; is THREAD the current thread?  This is a function in case
+;; EQ is insufficient for some implementations.
+(defun current-thread-p (thread)
+  (eq (current-thread) thread))
+
+
 (defun sql-escape-quotes (s)
   "Escape quotes for SQL string writing"
   (substitute-string-for-char s #\' "''"))

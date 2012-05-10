@@ -94,20 +94,32 @@
     sels))
 
 
+
+
+
+
+
+
+
 ;; Called by 'get-slot-values-from-view'
 ;;
 
-(defmethod update-slot-from-db ((instance standard-db-object) slotdef value)
+;; a database keyword is used here so that the macro
+;; with-database-for-db-or-db-desc can reuse the old database if it
+;; corresponds with the database-desc in the view-database slot of obj
+(defmethod update-slot-from-db ((instance standard-db-object) slotdef value &key database)
   (declare (optimize (speed 3) #+cmu (extensions:inhibit-warnings 3)))
   (let* ((slot-reader (view-class-slot-db-reader slotdef))
          (slot-name   (slot-definition-name slotdef))
          (slot-type   (specified-type slotdef)))
     (cond ((and value (null slot-reader))
            (setf (slot-value instance slot-name)
+		 (with-database-for-db-or-db-desc (db (view-database instance) database
+						      "update-slot-from-db")
                  (read-sql-value value (delistify slot-type)
-                                 (view-database instance)
+				   db
                                  (database-underlying-type
-                                  (view-database instance)))))
+				    db)))))
           ((null value)
            (update-slot-with-null instance slot-name slotdef))
           ((typep slot-reader 'string)
@@ -162,16 +174,20 @@
 ;; Called by find-all
 ;;
 
-(defmethod get-slot-values-from-view (obj slotdeflist values)
+;; a database keyword is used here so that the macro
+;; with-database-for-db-or-db-desc can reuse the old database if it
+;; corresponds with the database-desc in the view-database slot of obj
+(defmethod get-slot-values-from-view (obj slotdeflist values &key database)
   (flet ((update-slot (slot-def values)
-           (update-slot-from-db obj slot-def values)))
+           (update-slot-from-db obj slot-def values :database database)))
     (mapc #'update-slot slotdeflist values)
     obj))
 
 (defmethod update-record-from-slot ((obj standard-db-object) slot &key
                                     (database *default-database*))
-  (let* ((database (or (view-database obj) database))
-         (view-class (class-of obj)))
+  (with-database-for-db-or-db-desc (database (view-database obj) database
+					     "update-record-from-slot")
+    (let* ((view-class (class-of obj)))
     (when (normalizedp view-class)
       ;; If it's normalized, find the class that actually contains
       ;; the slot that's tied to the db
@@ -199,13 +215,17 @@
                                :attributes (list (sql-expression :attribute att))
                                :values (list val)
                                :database database)
-               (setf (slot-value obj 'view-database) database))
+		 (setf (slot-value obj 'view-database) (database-desc database)))
               (t
                (error "Unable to update record.")))))
-    (values)))
+      (values))))
 
 (defmethod update-record-from-slots ((obj standard-db-object) slots &key
                                      (database *default-database*))
+
+  (with-database-for-db-or-db-desc (database  (view-database obj) database
+					      "update-record-from-slots")
+
   (when (normalizedp (class-of obj))
     ;; FIXME: Rewrite to bundle slots for same table to be written
     ;; as avpairs (like how is done for non-normalized view-classes below)
@@ -213,8 +233,8 @@
       (update-record-from-slot obj slot :database database))
     (return-from update-record-from-slots (values)))
 
-  (let* ((database (or (view-database obj) database))
-         (vct (view-table (class-of obj)))
+
+    (let* ((vct (view-table (class-of obj)))
          (sds (slotdefs-for-slots-with-class slots (class-of obj)))
          (avps (mapcar #'(lambda (s)
                            (let ((val (slot-value
@@ -237,15 +257,16 @@
            (insert-records :into (sql-expression :table vct)
                            :av-pairs avps
                            :database database)
-           (setf (slot-value obj 'view-database) database))
+	     (setf (slot-value obj 'view-database) (database-desc database)))
           (t
            (error "Unable to update records"))))
-  (values))
+    (values)))
 
 (defmethod update-records-from-instance ((obj standard-db-object)
-                                         &key database this-class)
-  (let ((database (or database (view-database obj) *default-database*))
-        (pk nil))
+                                         &key (database *default-database*) this-class)
+  (with-database-for-db-or-db-desc (database  (view-database obj) database
+					      "update-records-from-instance")
+    (let ((pk nil))
     (labels ((slot-storedp (slot)
                (and (member (view-class-slot-db-kind slot) '(:base :key))
                     (slot-boundp obj (slot-definition-name slot))))
@@ -302,7 +323,7 @@
 				 (slot-value
 				  obj (slot-definition-name pk-slot)))))
 		  (when (eql this-class nil)
-		    (setf (slot-value obj 'view-database) database)))))))
+		     (setf (slot-value obj 'view-database) (database-desc database))))))))
     ;; handle slots with defaults
     (let* ((view-class (or this-class (class-of obj)))
 	   (slots (if (normalizedp view-class)
@@ -314,20 +335,21 @@
 		   (member :default (view-class-slot-db-constraints slot)))
 	  (unless (and (slot-boundp obj (slot-definition-name slot))
 		       (slot-value obj (slot-definition-name slot)))
-	    (update-slot-from-record obj (slot-definition-name slot))))))
+	      (update-slot-from-record obj (slot-definition-name slot) :database database)))))
 
-    pk))
+      pk)))
 
 (defmethod delete-instance-records ((instance standard-db-object))
   (let ((vt (sql-expression :table (view-table (class-of instance))))
-        (vd (view-database instance)))
-    (if vd
+	(vdi (view-database instance)))
+    (if vdi
+	(with-database-for-database-desc (vd vdi)
         (let ((qualifier (key-qualifier-for-instance instance :database vd)))
           (delete-records :from vt :where qualifier :database vd)
           (setf (record-caches vd) nil)
           (setf (slot-value instance 'view-database) nil)
           (values))
-        (signal-no-database-error vd))))
+	  (signal-no-database-error vd)))))
 
 (defmethod update-instance-from-records ((instance standard-db-object)
                                          &key (database *default-database*)
@@ -335,11 +357,15 @@
   (let* ((view-class (or this-class (class-of instance)))
          (pclass (car (class-direct-superclasses view-class)))
          (pres nil))
+
+    (with-database-for-db-or-db-desc (vd  (view-database instance) database
+					  "update-instance-from-records")
+
     (when (normalizedp view-class)
-      (setf pres (update-instance-from-records instance :database database
+	(setf pres (update-instance-from-records instance :database vd
                                                :this-class pclass)))
+
     (let* ((view-table (sql-expression :table (view-table view-class)))
-           (vd (or (view-database instance) database))
            (view-qual (key-qualifier-for-instance instance :database vd
                                                            :this-class view-class))
            (sels (generate-selection-list view-class))
@@ -351,10 +377,11 @@
                                                      :result-types nil
                                                      :database vd))))
              (when res
-	       (setf (slot-value instance 'view-database) vd)
-               (get-slot-values-from-view instance (mapcar #'car sels) (car res))))
+	       (setf (slot-value instance 'view-database) (database-desc vd))
+               (get-slot-values-from-view instance (mapcar #'car sels) (car res)
+					  :database vd)))
             (pres)
-            (t nil)))))
+	      (t nil))))))
 
 (defmethod update-slot-from-record ((instance standard-db-object)
                                     slot &key (database *default-database*))
@@ -370,16 +397,18 @@
                          (mapcar #'(lambda (esd) (slot-definition-name esd))
                                  (ordered-class-direct-slots this-class)))
                  this-class))))
+    (with-database-for-db-or-db-desc (vd (view-database instance) database
+					 "update-slot-from-record")
     (let* ((view-table (sql-expression :table (view-table view-class)))
-           (vd (or (view-database instance) database))
            (view-qual (key-qualifier-for-instance instance :database vd
                                                            :this-class view-class))
            (att-ref (generate-attribute-reference view-class slot-def))
            (res (select att-ref :from  view-table :where view-qual
                                                   :result-types nil)))
       (when res
-	(setf (slot-value instance 'view-database) vd)
-        (get-slot-values-from-view instance (list slot-def) (car res))))))
+	  (setf (slot-value instance 'view-database) (database-desc vd))
+	  (get-slot-values-from-view instance (list slot-def) (car res)
+				     :database vd))))))
 
 (defmethod update-slot-with-null ((object standard-db-object)
                                   slotname
@@ -754,6 +783,8 @@
          (jq (join-qualifier class object slot-def))
          (key (slot-value object (gethash :home-key dbi))))
 
+    (with-database-for-database-desc (vd  (view-database object))
+
     (when jq
       (ecase retrieval
         (:immediate
@@ -770,10 +801,13 @@
                                 :table jc-view-table))
                           :where jq
                           :result-types :auto
-                          :database (view-database object))))
+			    :database vd)))
            (mapcar #'(lambda (i)
                        (let* ((instance (car i))
-                              (jcc (make-instance jc :view-database (view-database instance))))
+				;; put the threadsafe database-desc,
+				;; not the database, in the view
+				;; database slot.
+				(jcc (make-instance jc :view-database (database-desc vd))))
                          (setf (slot-value jcc (gethash :foreign-key dbi))
                                key)
                          (setf (slot-value jcc (gethash :home-key tdbi))
@@ -784,8 +818,8 @@
          ;; just fill in minimal slots
          (mapcar
           #'(lambda (k)
-              (let ((instance (make-instance tsc :view-database (view-database object)))
-                    (jcc (make-instance jc :view-database (view-database object)))
+		(let ((instance (make-instance tsc :view-database (database-desc vd)))
+		      (jcc (make-instance jc :view-database (database-desc vd)))
                     (fk (car k)))
                 (setf (slot-value instance (gethash :home-key tdbi)) fk)
                 (setf (slot-value jcc (gethash :foreign-key dbi))
@@ -796,7 +830,7 @@
           (select (sql-expression :attribute (gethash :foreign-key tdbi) :table jc-view-table)
                   :from (sql-expression :table jc-view-table)
                   :where jq
-                  :database (view-database object))))))))
+		    :database vd))))))))
 
 
 ;;; Remote Joins
@@ -893,8 +927,9 @@ maximum of MAX-LEN instances updated in each query."
          (jc (gethash :join-class dbi)))
     (let ((jq (join-qualifier class object slot-def)))
       (when jq
+	(with-database-for-database-desc (vd  (view-database object))
         (select jc :where jq :flatp t :result-types nil
-                :database (view-database object))))))
+		  :database vd))))))
 
 (defun fault-join-slot (class object slot-def)
   (let* ((dbi (view-class-slot-db-info slot-def))
@@ -940,10 +975,11 @@ maximum of MAX-LEN instances updated in each query."
         ;; Caching nil in next select, because in normalized mode
         ;; records can be changed through other instances (children,
         ;; parents) so changes possibly won't be noticed
-        (let ((res (car (select (class-name sc) :where jq
+        (let ((res (car (with-database-for-database-desc (vd  (view-database object))
+			  (select (class-name sc) :where jq
                                                 :flatp t :result-types nil
                                                 :caching nil
-                                                :database (view-database object))))
+				  :database vd))))
               (slot-name (slot-definition-name slot-def)))
 
           ;; If current class is normalized and wanted slot is not
@@ -1004,16 +1040,20 @@ maximum of MAX-LEN instances updated in each query."
   (labels ((build-object (vals vclass jclasses selects immediate-selects instance)
              (let* ((db-vals (butlast vals (- (list-length vals)
                                               (list-length selects))))
-                    (obj (if instance instance (make-instance (class-name vclass) :view-database database)))
+                    (obj (if instance instance (make-instance (class-name vclass)
+							      :view-database (database-desc database))))
                     (join-vals (subseq vals (list-length selects)))
-                    (joins (mapcar #'(lambda (c) (when c (make-instance c :view-database database)))
+                    (joins (mapcar #'(lambda (c) (when c (make-instance
+							  c
+							  :view-database (database-desc database))))
                                    jclasses)))
 
                ;;(format t "joins: ~S~%db-vals: ~S~%join-values: ~S~%selects: ~S~%immediate-selects: ~S~%"
                ;;joins db-vals join-vals selects immediate-selects)
 
                ;; use refresh keyword here
-               (setf obj (get-slot-values-from-view obj (mapcar #'car selects) db-vals))
+               (setf obj (get-slot-values-from-view obj (mapcar #'car selects) db-vals
+						    :database database))
                (mapc #'(lambda (jo)
                          ;; find all immediate-select slots and join-vals for this object
                          (let* ((jo-class (class-of jo))
@@ -1034,7 +1074,8 @@ maximum of MAX-LEN instances updated in each query."
                                                                           (nth pos immediate-selects))
                                                                       pos-list))
                                                       (mapcar #'(lambda (pos) (nth pos join-vals))
-                                                              pos-list))))
+                                                              pos-list)
+						      :database database)))
                      joins)
                (mapc
                 #'(lambda (jc)
@@ -1340,16 +1381,19 @@ as elements of a list."
   (when (record-caches database)
     (gethash (compute-records-cache-key targets qualifiers) (record-caches database))))
 
+;; works on either database or database-desc
 (defun (setf records-cache-results) (results targets qualifiers database)
+  (with-database-cache-locked (database "(setf records-cache-results)")
   (unless (record-caches database)
     (setf (record-caches database)
           (make-hash-table :test 'equal
+			     #+sbcl      :weakness  #+sbcl      :value
                            #+allegro   :values    #+allegro :weak
                            #+clisp     :weak      #+clisp :value
                            #+lispworks :weak-kind #+lispworks :value)))
   (setf (gethash (compute-records-cache-key targets qualifiers)
                  (record-caches database)) results)
-  results)
+    results))
 
 
 

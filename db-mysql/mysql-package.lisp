@@ -78,6 +78,8 @@
      ;; functions
      #:mysql-init
      #:mysql-library-init
+     #:mysql-thread-init
+     #:mysql-thread-end
      #:mysql-connect
      #:mysql-real-connect
      #:mysql-close

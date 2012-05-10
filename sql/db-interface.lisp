@@ -101,7 +101,7 @@ function should signal a sql-database-data-error."))
 (defgeneric database-dump-result-set (result-set database)
   (:method (result-set (database t))
            (declare (ignore result-set))
-           (signal-no-database-error database))
+           (signal-no-database-error database "database-dump-result-set"))
     (:method (result-set (database database))
            (declare (ignore result-set))
            (warn "database-dump-result-set not implemented for database type ~A."
@@ -111,7 +111,7 @@ function should signal a sql-database-data-error."))
 (defgeneric database-store-next-row (result-set database list)
   (:method (result-set (database t) list)
            (declare (ignore result-set list))
-           (signal-no-database-error database))
+           (signal-no-database-error database "database-store-next-row"))
     (:method (result-set (database database) list)
            (declare (ignore result-set list))
            (warn "database-store-next-row not implemented for database type ~A."
@@ -176,17 +176,17 @@ if unable to destory."))
 (defgeneric database-start-transaction (database)
   (:documentation "Start a transaction in DATABASE.")
   (:method ((database t))
-           (signal-no-database-error database)))
+           (signal-no-database-error database "database-start-transaction")))
 
 (defgeneric database-commit-transaction (database)
   (:documentation "Commit current transaction in DATABASE.")
   (:method ((database t))
-           (signal-no-database-error database)))
+           (signal-no-database-error database "database-commit-transaction")))
 
 (defgeneric database-abort-transaction (database)
   (:documentation "Abort current transaction in DATABASE.")
   (:method ((database t))
-           (signal-no-database-error database)))
+           (signal-no-database-error database "datbase-abort-transaction")))
 
 (defgeneric database-get-type-specifier (type args database db-underlying-type)
   (:documentation "Return the type SQL type specifier as a string, for
@@ -200,13 +200,13 @@ the given lisp type and parameters."))
                  (database-type database)))
   (:method ((database t) &key owner)
            (declare (ignore owner))
-           (signal-no-database-error database)))
+           (signal-no-database-error database "database-list-tables")))
 
 (defgeneric database-list-tables-and-sequences (database &key owner)
   (:documentation "List all tables in the given database, may include seqeneces")
   (:method ((database t) &key owner)
            (declare (ignore owner))
-           (signal-no-database-error database))
+           (signal-no-database-error database "database-list-tables-and-sequences"))
   (:method ((database database) &key owner)
            (database-list-tables database :owner owner)))
 
@@ -218,7 +218,7 @@ the given lisp type and parameters."))
                  (database-type database)))
   (:method ((database t) &key owner)
            (declare (ignore owner))
-           (signal-no-database-error database)))
+           (signal-no-database-error database "datbase-list-views")))
 
 (defgeneric database-list-indexes (database &key owner)
   (:documentation "List all indexes in the DATABASE.")
@@ -228,7 +228,7 @@ the given lisp type and parameters."))
                  (database-type database)))
   (:method ((database t) &key owner)
     (declare (ignore owner))
-    (signal-no-database-error database)))
+    (signal-no-database-error database "database-list-indexes")))
 
 (defgeneric database-list-table-indexes (table database &key owner)
   (:documentation "List all indexes for a table in the DATABASE.")
@@ -238,7 +238,7 @@ the given lisp type and parameters."))
                  (database-type database)))
   (:method (table (database t) &key owner)
            (declare (ignore table owner))
-           (signal-no-database-error database)))
+           (signal-no-database-error database "database-list-table-indexes")))
 
 (defgeneric database-list-attributes (table database &key owner)
   (:documentation "List all attributes in TABLE.")
@@ -248,7 +248,7 @@ the given lisp type and parameters."))
                  (database-type database)))
   (:method (table (database t) &key owner)
            (declare (ignore table owner))
-           (signal-no-database-error database)))
+           (signal-no-database-error database "database-list-attributes")))
 
 (defgeneric database-attribute-type (attribute table database &key owner)
   (:documentation "Return the type of ATTRIBUTE in TABLE. Returns multiple values
@@ -259,7 +259,7 @@ of TYPE_NAME (keyword) PRECISION SCALE NULLABLE.")
                  (database-type database)))
   (:method (attribute table (database t) &key owner)
            (declare (ignore attribute table owner))
-           (signal-no-database-error database)))
+           (signal-no-database-error database "database-attribute-type")))
 
 (defgeneric database-add-attribute (table attribute database)
   (:documentation "Add the attribute to the table.")
@@ -269,7 +269,7 @@ of TYPE_NAME (keyword) PRECISION SCALE NULLABLE.")
                  (database-type database)))
   (:method (table attribute (database t))
            (declare (ignore table attribute))
-           (signal-no-database-error database)))
+           (signal-no-database-error database "database-add-attribute")))
 
 (defgeneric database-rename-attribute (table oldatt newname database)
   (:documentation "Rename the attribute in the table to NEWNAME.")
@@ -279,7 +279,7 @@ of TYPE_NAME (keyword) PRECISION SCALE NULLABLE.")
                  (database-type database)))
   (:method (table oldatt newname (database t))
            (declare (ignore table oldatt newname))
-           (signal-no-database-error database)))
+           (signal-no-database-error database "database-rename-attribute")))
 
 (defgeneric oid (object)
   (:documentation "Return the unique ID of a database object."))
@@ -403,7 +403,7 @@ of TYPE_NAME (keyword) PRECISION SCALE NULLABLE.")
 (defgeneric database-prepare (stmt types database result-types field-names)
   (:method (stmt types (database t) result-types field-names)
     (declare (ignore stmt types result-types field-names))
-    (signal-no-database-error database))
+    (signal-no-database-error database "database-prepare"))
   (:method (stmt types (database database) result-types field-names)
     (declare (ignore stmt types result-types field-names))
     (error 'sql-database-error
@@ -445,50 +445,61 @@ appropriate."))
   (:documentation "Chance for the database to cleanup before it is
   returned to the connection pool."))
 
-;; Checks for closed database
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; :BEFORE methods to perform sanity checks
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmethod database-disconnect :before ((database database))
+(defun database-before-method-sanity-check (database where)
+  ;;
+  ;; check that database is owned by this thread
+  (unless (current-thread-owns-database-p database)
+    (signal-wrong-thread-database-error database where))
+  ;;
+  ;; check that a valid database-desc has been plugged into the DESC
+  ;; slot
+  (let ((desc (database-desc database)))
+    (unless (and desc
+		 (equalp (connection-spec database) (connection-spec desc))
+		 (eq     (database-type database) (database-type desc)))
+      (signal-mismatched-database-desc-error database where)))
+  ;;
+  ;; check for closed database
   (unless (is-database-open database)
     (signal-closed-database-error database)))
+
+(defmethod database-disconnect :before ((database database))
+  (database-before-method-sanity-check database "database-disconnect"))
 
 (defmethod database-query :before (query-expression (database database)
                                    result-set field-names)
   (declare (ignore query-expression result-set field-names))
-  (unless (is-database-open database)
-    (signal-closed-database-error database)))
+  (database-before-method-sanity-check database "database-query"))
 
 (defmethod database-execute-command :before (sql-expression (database database))
   (declare (ignore sql-expression))
-  (unless (is-database-open database)
-    (signal-closed-database-error database)))
+  (database-before-method-sanity-check database "database-execute-command"))
 
 (defmethod database-query-result-set :before (expr (database database)
                                             &key full-set result-types)
   (declare (ignore expr full-set result-types))
-  (unless (is-database-open database)
-    (signal-closed-database-error database)))
+  (database-before-method-sanity-check database "database-query-result-set"))
 
 (defmethod database-dump-result-set :before (result-set (database database))
   (declare (ignore result-set))
-  (unless (is-database-open database)
-    (signal-closed-database-error database)))
+  (database-before-method-sanity-check database "database-dump-result-set"))
 
 (defmethod database-store-next-row :before (result-set (database database) list)
   (declare (ignore result-set list))
-  (unless (is-database-open database)
-    (signal-closed-database-error database)))
+  (database-before-method-sanity-check database "database-store-next-row"))
 
 (defmethod database-commit-transaction :before ((database database))
-  (unless (is-database-open database)
-    (signal-closed-database-error database)))
+  (database-before-method-sanity-check database "database-commit-transaction"))
 
 (defmethod database-start-transaction :before ((database database))
-  (unless (is-database-open database)
-    (signal-closed-database-error database)))
+  (database-before-method-sanity-check database "database-start-transaction"))
 
 (defmethod database-abort-transaction :before ((database database))
-  (unless (is-database-open database)
-    (signal-closed-database-error database)))
+  (database-before-method-sanity-check database "datbase-abort-transaction"))
 
 (defvar *foreign-library-search-paths* nil
   "A list of pathnames denoting directories where CLSQL will look

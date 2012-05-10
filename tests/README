@@ -15,7 +15,17 @@ and call:
 (asdf:oos 'asdf:test-op 'clsql)
 
 The test suite will then automatically run on all of the backends that
-you have defined in .clsql-test.config
+you have defined in $HOME/.clsql-test.config
+
+A sample .cslql-test.config might be:
+
+  (
+    (:mysql   ("localhost" "testdb" "user" "password"))
+    (:sqlite3 ("testdb.sqlite3"))
+    ;; other lines of form (:database connection-spec)
+  )
+
+
 
 * REGRESSION TEST SUITE GOALS
 

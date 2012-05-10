@@ -37,9 +37,9 @@
 (defmethod database-connect (connection-spec (database-type (eql :sqlite)))
   (check-sqlite-connection-spec connection-spec)
   (handler-case
-      (make-instance 'sqlite-database
-                     :name (database-name-from-spec connection-spec :sqlite)
-                     :database-type :sqlite
+      (clsql-sys:build-database-object
+       'sqlite-database
+       :database-type database-type
                      :connection-spec connection-spec
                      :sqlite-db (sqlite:sqlite-open (first connection-spec)))
     (sqlite:sqlite-error (err)

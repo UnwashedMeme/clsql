@@ -37,9 +37,10 @@
   (check-connection-spec connection-spec database-type (dsn user password &key connection-string completion window-handle))
   (destructuring-bind (dsn user password &key connection-string (completion :no-prompt) window-handle) connection-spec
     (handler-case
-        (let ((db (make-instance 'odbc-database
-                                 :name (database-name-from-spec connection-spec :odbc)
-                                 :database-type :odbc
+        (let ((db (clsql-sys:build-database-object
+		   'odbc-database
+		   :database-type database-type
+		   :connection-spec connection-spec
                                  :dbi-package (find-package '#:odbc-dbi)
                                  :odbc-conn
                                  (odbc-dbi:connect :user user

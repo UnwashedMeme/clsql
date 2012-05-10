@@ -139,6 +139,7 @@
      #:database-list
      #:database-acquire-from-conn-pool
      #:database-release-to-conn-pool
+     #:build-database-object
 
      #:db-backend-has-create/destroy-db?
      #:db-type-has-views?
@@ -199,6 +200,9 @@
      #:without-interrupts
      #:make-process-lock
      #:with-process-lock
+     #:current-thread
+     #:current-thread-p
+     #:thread-alive-p
      #:command-output
      #:symbol-name-default-case
      #:convert-to-db-default-case
@@ -272,6 +276,7 @@
          #:*connect-if-exists*
          #:connected-databases
          #:database
+	 #:database-desc
          #:database-name
          #:reconnect
          #:find-database
@@ -384,7 +389,12 @@
          #:*db-auto-sync*
          #:write-instance-to-stream
          #:read-instance-from-stream
-
+	 ;; per-thread inits and cleanup (threads.lisp)
+	 #:database-init-thread
+	 #:database-cleanup-thread
+	 #:init-thread
+	 #:cleanup-thread
+	 #:with-clsql-thread
          ;; Symbolic SQL Syntax (syntax.lisp)
          #:sql
          #:sql-expression
@@ -555,6 +565,7 @@
          #:gregorian-to-mjd
          #:mjd-to-gregorian
          #:iso-timestring
+	 ;;
          ))
     (:documentation "This is the INTERNAL SQL-Interface package of CLSQL."))
 

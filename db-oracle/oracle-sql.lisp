@@ -814,13 +814,13 @@ the length of that format.")
       (oci-handle-alloc (deref-vp envhp) srvhp
                         +oci-htype-server+ 0 +null-void-pointer-pointer+)
 
-      (let ((db (make-instance 'oracle-database
-                  :name (database-name-from-spec connection-spec
-                                                 database-type)
+      (let ((db (clsql-sys:build-database-object
+		 'oracle-database
+		 :database-type database-type
                   :connection-spec connection-spec
+		 :database-type :oracle
                   :envhp envhp
                   :errhp errhp
-                  :database-type :oracle
                   :svchp svchp
                   :dsn data-source-name
                   :user user)))
