@@ -570,10 +570,12 @@ implementations."
                                 &optional database find-class-p)
   "the majority of this function is in expressions.lisp
    this is here to make loading be less painful (try-recompiles) in SBCL"
+  (declare (ignore find-class-p))
   (database-identifier (view-table name) database))
 
 (defmethod database-identifier ((name view-class-slot-definition-mixin)
                                 &optional database find-class-p)
+  (declare (ignore find-class-p))
   (database-identifier
    (if (slot-boundp name 'column)
        (delistify-dsd (view-class-slot-column name))
