@@ -35,18 +35,30 @@
 		      :documentation "Have we already prepared this command object?")
    ))
 
+
+(defgeneric prepare-sql-parameter (sql-parameter)
+  (:documentation "This method is responsible for formatting parameters
+     as the database expects them (eg: :false is nil, nil is :null, dates are iso8601 strings)")
+  (:method (sql-parameter)
+    (typecase sql-parameter
+      (null :null)
+      (symbol
+       (if (member sql-parameter (list :false :F))
+           nil
+           (princ-to-string sql-parameter)))
+      (clsql-sys:date (format-date nil sql-parameter :format :iso8601))
+      (clsql-sys:wall-time (format-time nil sql-parameter :format :iso8601))
+      (t sql-parameter))))
+
 (defmethod initialize-instance :after ((o command-object) &key &allow-other-keys )
-  ;; Inits parameter nulls
+  ;; Inits parameter value coersion
   (setf (parameters o) (parameters o)))
 
 (defmethod (setf parameters) (new (o command-object))
   " This causes the semantics to match cl-sql instead of cl-postgresql
   "
   (setf (slot-value o 'parameters)
-	(loop for p in new
-	      collecting (cond ((null p) :null)
-			       ((member p (list :false :F)) nil)
-			       (T p)))))
+	(loop for p in new collecting (prepare-sql-parameter p))))
 
 (defun reset-command-object (co)
   "Resets the command object to have no name and to be unprepared

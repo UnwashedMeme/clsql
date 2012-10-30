@@ -213,6 +213,7 @@
      ;; Command-object.lisp
      #:expression
      #:parameters
+     #:prepare-sql-parameter
      #:prepared-name
      #:has-been-prepared
      #:command-object

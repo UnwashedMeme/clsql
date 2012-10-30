@@ -1,3 +1,7 @@
+2012-10-30  Russ Tyndall <russ@acceleration.net>
+	* sql/command-object.lisp - added dates/times to the parameter value
+	coersion and pulled this into a new generic prepare-sql-parameter
+
 2012-09-04  Russ Tyndall <russ@acceleration.net>
 	* sql/expressions.lisp - Try to respect the casing of symbols
 	where it seems intentional (ie: is not default). This should fix
