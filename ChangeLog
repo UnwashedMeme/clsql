@@ -1,3 +1,12 @@
+2012-11-14  Russ Tyndall <russ@acceleration.net>
+	* sql/oodml.lisp - split out a method
+	update-records-from-instance-slots-and-values to provide an
+	extension point for objects being saved via
+	update-records-from-instance.  The intended use is for things such
+	as dirty slots mixins to be able to control what slots and values
+	are sent. I think that there should be no change in logic, just
+	a new method for subclasses/mixins to extend
+
 2012-10-30  Russ Tyndall <russ@acceleration.net>
 	* sql/command-object.lisp - added dates/times to the parameter value
 	coersion and pulled this into a new generic prepare-sql-parameter
