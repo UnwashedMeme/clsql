@@ -254,10 +254,14 @@
   (values))
 
 (defun %slot-storedp (obj slot)
+  "Whether or not a slot should be stored in the database based on its db-kind
+   and whether it is bound"
   (and (member (view-class-slot-db-kind slot) '(:base :key))
        (slot-boundp obj (slot-definition-name slot))))
 
 (defun %slot-value-list (obj slot database)
+  "Creates a 2 element list of (db-attribute-to-update value-of-attribute)
+   these are passed along to update-records / insert-records as av-pairs"
   (let ((value (slot-value obj (slot-definition-name slot))))
     (check-slot-type slot value)
     (list (sql-expression :attribute (database-identifier slot database))
@@ -267,18 +271,19 @@
     ((obj standard-db-object) view-class database)
   "Collects a list of (slot-sql-expression value) for insert/update
    to the database (from update-records-from-instance)"
-  (let* ((database (choose-database-for-instance obj database))
-         (all-slots (if (normalizedp view-class)
-                        (ordered-class-direct-slots view-class)
-                        (ordered-class-slots view-class)))
-         (record-values
-           (loop for s in all-slots
-                 when (%slot-storedp obj s)
-                 collect (%slot-value-list obj s database))))
-    record-values))
+  (let ((database (choose-database-for-instance obj database))
+        (all-slots (if (normalizedp view-class)
+                       (ordered-class-direct-slots view-class)
+                       (ordered-class-slots view-class))))
+    (loop for s in all-slots
+          when (%slot-storedp obj s)
+          collect (%slot-value-list obj s database))))
 
 (defmethod update-records-from-instance ((obj standard-db-object)
                                          &key database this-class)
+  "Updates the records in the database associated with this object if
+   view-database slot on the object is nil then the object is assumed to be
+   new and is inserted"
   (let ((database (choose-database-for-instance obj database))
         (pk nil))
     (let* ((view-class (or this-class (class-of obj)))

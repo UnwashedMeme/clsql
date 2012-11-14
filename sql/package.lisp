@@ -387,6 +387,7 @@
          #:update-slot-from-record
          #:update-instance-from-records
          #:update-records-from-instance
+         #:update-records-from-instance-slots-and-values
          #:update-record-from-slot
          #:update-record-from-slots
          #:delete-instance-records
