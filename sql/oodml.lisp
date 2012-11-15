@@ -297,9 +297,9 @@
                                                    :this-class pclass))
         (when pk-slot
           (setf (slot-value obj pk-name) pk)))
-      (let* ((record-values
-               (update-records-from-instance-slots-and-values
-                obj view-class database)))
+      (let ((record-values
+              (update-records-from-instance-slots-and-values
+               obj view-class database)))
 
         (cond ((and (not (normalizedp view-class)) (not record-values))
                (error "No settable slots."))
