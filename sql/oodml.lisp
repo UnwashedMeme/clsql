@@ -105,30 +105,31 @@
 
 
 
-;; Called by 'get-slot-values-from-view'
-;;
+(defmethod update-slot-with-null ((object standard-db-object) slotdef)
+  (setf (easy-slot-value object slotdef)
+        (slot-value slotdef 'void-value)))
 
-(defmethod update-slot-from-db ((instance standard-db-object) slotdef value)
+(defmethod update-slot-from-db-value ((instance standard-db-object) slotdef value)
+  "This gets a value from the database and turns it itno a lisp value
+   based on the slot's slot-db-reader or baring that read-sql-value"
   (declare (optimize (speed 3) #+cmu (extensions:inhibit-warnings 3)))
   (let* ((slot-reader (view-class-slot-db-reader slotdef))
-         (slot-name   (slot-definition-name slotdef))
          (slot-type   (specified-type slotdef)))
-    (cond ((and value (null slot-reader))
-           (setf (slot-value instance slot-name)
-                 (read-sql-value value (delistify slot-type)
-                                 (choose-database-for-instance instance)
-                                 (database-underlying-type
-                                  (choose-database-for-instance instance)))))
-          ((null value)
-           (update-slot-with-null instance slot-name slotdef))
-          ((typep slot-reader 'string)
-           (setf (slot-value instance slot-name)
-                 (format nil slot-reader value)))
-          ((typep slot-reader '(or symbol function))
-           (setf (slot-value instance slot-name)
-                 (apply slot-reader (list value))))
-          (t
-           (error "Slot reader is of an unusual type.")))))
+    (cond
+      ((null value) (update-slot-with-null instance slotdef))
+      ((null slot-reader)
+       (setf (easy-slot-value instance slotdef)
+             (read-sql-value value (delistify slot-type)
+                             (choose-database-for-instance instance)
+                             (database-underlying-type
+                              (choose-database-for-instance instance)))))
+      (t (etypecase slot-reader
+           ((or symbol function)
+            (setf (easy-slot-value instance slotdef)
+                  (apply slot-reader (list value))))
+           (string
+            (setf (easy-slot-value instance slotdef)
+                  (format nil slot-reader value))))))))
 
 (defmethod key-value-from-db (slotdef value database)
   (declare (optimize (speed 3) #+cmu (extensions:inhibit-warnings 3)))
@@ -169,184 +170,212 @@
                (format nil "Invalid value ~A in slot ~A, not of type ~A."
                        val (slot-definition-name slotdef) slot-type))))))
 
-;;
-;; Called by find-all
-;;
-
 (defmethod get-slot-values-from-view (obj slotdeflist values)
-  (flet ((update-slot (slot-def values)
-           (update-slot-from-db obj slot-def values)))
-    (mapc #'update-slot slotdeflist values)
-    obj))
+  "Used to copy values from the database into the object
+   used by things like find-all and select"
+  (loop for slot in slotdeflist
+        for value in values
+        do (update-slot-from-db-value obj slot value))
+  obj)
 
-(defmethod update-record-from-slot ((obj standard-db-object) slot &key
-                                    (database *default-database*))
-  (let* ((database (choose-database-for-instance obj database))
-         (view-class (class-of obj)))
-    (when (normalizedp view-class)
-      ;; If it's normalized, find the class that actually contains
-      ;; the slot that's tied to the db
-      (setf view-class
-            (do ((this-class view-class
-                             (car (class-direct-superclasses this-class))))
-                ((member slot
-                         (mapcar #'(lambda (esd) (slot-definition-name esd))
-                                 (ordered-class-direct-slots this-class)))
-                 this-class))))
-    (let* ((vct (view-table view-class))
-           (sd (slotdef-for-slot-with-class slot view-class)))
-      (check-slot-type sd (slot-value obj slot))
-      (let* ((att (database-identifier sd database))
-             (val (db-value-from-slot sd (slot-value obj slot) database)))
-        (cond ((and vct sd (view-database obj))
-               (update-records (sql-expression :table vct)
-                               :attributes (list (sql-expression :attribute att))
-                               :values (list val)
-                               :where (key-qualifier-for-instance
-                                       obj :database database :this-class view-class)
-                               :database database))
-              ((and vct sd (not (view-database obj)))
-               (insert-records :into (sql-expression :table vct)
-                               :attributes (list (sql-expression :attribute att))
-                               :values (list val)
-                               :database database)
-               (setf (slot-value obj 'view-database) database))
-              (t
-               (error "Unable to update record.")))))
-    (values)))
+(defun to-slot-name (slot)
+  "try to turn what we got representing the slot into a slot name"
+  (etypecase slot
+    (symbol slot)
+    (slot-definition (slot-definition-name slot))))
 
-(defmethod update-record-from-slots ((obj standard-db-object) slots &key
-                                     (database *default-database*))
-  (when (normalizedp (class-of obj))
-    ;; FIXME: Rewrite to bundle slots for same table to be written
-    ;; as avpairs (like how is done for non-normalized view-classes below)
-    (dolist (slot slots)
-      (update-record-from-slot obj slot :database database))
-    (return-from update-record-from-slots (values)))
+(defun easy-slot-value (obj slot)
+  "like slot-value except it accepts slot-names or defs
+   and returns nil when the slot is unbound"
+  (let ((n (to-slot-name slot)))
+    (when (slot-boundp obj n)
+      (slot-value obj n))))
 
-  (let* ((database (choose-database-for-instance obj database))
-         (vct (view-table (class-of obj)))
-         (sds (slotdefs-for-slots-with-class slots (class-of obj)))
-         (avps (mapcar #'(lambda (s)
-                           (let ((val (slot-value
-                                       obj (slot-definition-name s))))
-                             (check-slot-type s val)
-                             (list (sql-expression
-                                    :attribute (database-identifier s database))
-                                   (db-value-from-slot s val database))))
-                       sds)))
-    (cond ((and avps (view-database obj))
+(defun (setf easy-slot-value) (new obj slot)
+  "like slot-value except it accepts slot-names or defs"
+  (setf (slot-value obj (to-slot-name slot)) new))
+
+(defclass class-and-slots ()
+  ((view-class :accessor view-class :initarg :view-class :initform nil)
+   (slot-defs :accessor slot-defs :initarg :slot-defs :initform nil))
+  (:documentation "A helper class to keep track of which slot-defs from a
+   table need to be updated, a normalized class might have many of these
+   because each of its parent classes might represent some other table and we
+   need to match which slots came from which parent class/table"))
+
+(defun make-class-and-slots (c &optional s)
+  "Create a new class-and-slots object"
+  (make-instance 'class-and-slots :view-class c :slot-defs (listify s) ))
+
+(defmethod view-table ((o class-and-slots))
+  "get the view-table of the view-class of o"
+  (view-table (view-class o)))
+
+(defmethod attribute-value-pairs ((def class-and-slots) (o standard-db-object)
+                                  database)
+  "for a given class-and-slots and object, create the sql-expression & value pairs
+   that need to be sent to the database"
+  (loop for s in (slot-defs def)
+        for v = (easy-slot-value o s)
+        collect (make-attribute-value-pair s v database)))
+
+(defun find-class-slot-by-name (class slot-name direct?)
+  "Looks up a direct-slot-definition by name"
+  (find (to-slot-name slot-name)
+        (if direct?
+            (ordered-class-direct-slots class)
+            (ordered-class-slots class))
+        :key #'slot-definition-name))
+
+(defmethod view-classes-and-slots-by-name ((obj standard-db-object) slots-to-match)
+  "If it's normalized, find the class that actually contains
+   the slot that's tied to the db,
+
+   otherwise just search the current class
+  "
+  (let* ((view-class (class-of obj))
+         (normalizedp (normalizedp view-class))
+         rtns)
+    (labels ((ensure-returnable (class)
+               (let ((rtn (find class rtns :key #'view-class)))
+                 (unless rtn
+                   (setf rtn (make-class-and-slots class))
+                   (push rtn rtns))
+                 rtn))
+             (find-slot-for-return (class slot)
+               "recursive return list-builder that searches the parent chain
+                of the classes looking for the correct direct slot (if normalized)"
+               (let ((sd (find-class-slot-by-name class slot normalizedp)))
+                 (if sd
+                     (pushnew sd (slot-defs (ensure-returnable class)))
+                     (when normalizedp
+                       (loop for new-class in (class-direct-superclasses class)
+                             until (find-slot-for-return new-class slot))))
+                 sd)))
+      (loop
+        for in-slot in slots-to-match
+        do (find-slot-for-return view-class in-slot)))
+    rtns))
+
+(defmethod %update-instance-helper (class-and-slots obj database)
+  (let* ((view-class (view-class class-and-slots))
+         (table (view-table view-class))
+         (table-sql (sql-expression :table table))
+         (avps (attribute-value-pairs class-and-slots obj database)))
+
+    (unless avps
+      (error "Unable to update records for ~A ~A ~A~% for this classes and slots ~A~%~A"
+             view-class table obj class-and-slots avps))
+
+    ;; view database is the flag we use to tell it was pulled from a database
+    ;; and thus probably needs an update instead of an insert
+    (cond ((view-database obj)
            (let ((where (key-qualifier-for-instance
-                         obj :database database)))
+                         obj :database database :this-class view-class)))
              (unless where
-               (error "update-record-from-slots: could not generate a where clause for ~a" obj))
-             (update-records (sql-expression :table vct)
+               (error "update-record-from-slots: could not generate a where clause for ~a using ~A"
+                      obj view-class))
+             (update-records table-sql
                              :av-pairs avps
                              :where where
                              :database database)))
-          ((and avps (not (view-database obj)))
-           (insert-records :into (sql-expression :table vct)
+          (T ;; was not pulled from the db so insert it
+           (insert-records :into table-sql
                            :av-pairs avps
                            :database database)
-           (setf (slot-value obj 'view-database) database))
-          (t
-           (error "Unable to update records"))))
+           ;; handle pulling any autoincrement values into the object
+           (let ((pk-slots (keyslots-for-class view-class)))
+             (loop for pks in pk-slots
+                   do (when (auto-increment-column-p pks database)
+                        (update-slot-from-db-value
+                         obj pks (database-last-auto-increment-id
+                                  database table pks)))))
+           (setf (slot-value obj 'view-database) database)))
+    (update-slot-default-values obj class-and-slots)))
+
+(defmethod update-record-from-slots ((obj standard-db-object) slots
+                                     &key (database *default-database*))
+  (setf slots (listify slots))
+  (let* ((classes-and-slots (view-classes-and-slots-for-names obj slots))
+         (database (choose-database-for-instance obj database)))
+    (loop for class-and-slots in classes-and-slots
+          do (%update-instance-helper classes-and-slots obj database)))
   (values))
 
-(defun %slot-storedp (obj slot)
+(defmethod update-record-from-slot
+    ((obj standard-db-object) slot &key (database *default-database*))
+  (update-record-from-slots obj slot :database database))
+
+(defun %slot-storedp (obj slot-def)
   "Whether or not a slot should be stored in the database based on its db-kind
    and whether it is bound"
-  (and (member (view-class-slot-db-kind slot) '(:base :key))
-       (slot-boundp obj (slot-definition-name slot))))
+  (and (member (view-class-slot-db-kind slot-def) '(:base :key))
+       (slot-boundp obj (slot-definition-name slot-def))))
 
-(defun %slot-value-list (obj slot database)
-  "Creates a 2 element list of (db-attribute-to-update value-of-attribute)
-   these are passed along to update-records / insert-records as av-pairs"
-  (let ((value (slot-value obj (slot-definition-name slot))))
-    (check-slot-type slot value)
-    (list (sql-expression :attribute (database-identifier slot database))
-          (db-value-from-slot slot value database))))
+(defmethod view-classes-and-storable-slots-for-instance ((obj standard-db-object))
+  "Get a list of all the tables we need to update and the slots on them
 
-(defmethod update-records-from-instance-slots-and-values
-    ((obj standard-db-object) view-class database)
-  "Collects a list of (slot-sql-expression value) for insert/update
-   to the database (from update-records-from-instance)"
-  (let ((database (choose-database-for-instance obj database))
-        (all-slots (if (normalizedp view-class)
-                       (ordered-class-direct-slots view-class)
-                       (ordered-class-slots view-class))))
-    (loop for s in all-slots
-          when (%slot-storedp obj s)
-          collect (%slot-value-list obj s database))))
+   for non normalized classes we return the class and all its storable slots
+
+   for normalized classes we return a list of direct slots and the class they
+   came from for each normalized view class
+  "
+  (let* ((view-class (class-of obj))
+         rtns)
+    (labels ((storable-slots (class normalizedp)
+               (loop for sd in (if normalizedp
+                                   (ordered-class-direct-slots class)
+                                   (ordered-class-slots class))
+                     when (%slot-storedp obj sd)
+                     collect sd))
+             (get-classes-and-slots (class &aux (normalizedp (normalizedp class)))
+               (let ((slots (storable-slots class normalizedp)))
+                 (when slots
+                   (push (make-class-and-slots class slots) rtns)))
+               (when normalizedp
+                 (loop for new-class in (class-direct-superclasses class)
+                       do (when (typep new-class 'standard-db-class)
+                            (get-classes-and-slots new-class))))))
+      (get-classes-and-slots view-class))
+    (nreverse rtns)))
+
+(defmethod primary-key-slot-values ((obj standard-db-object)
+                                    &key class slots )
+  (defaulting class (class-of obj)
+              slots (keyslots-for-class class))
+  (loop for slot in slots
+        collect (easy-slot-value obj slot)))
+
+(defun slot-has-default-p (slot)
+  "returns nil if the slot does not have a default constraint"
+  (let* ((constraints
+           (when (typep slot '(or view-class-direct-slot-definition
+                               view-class-effective-slot-definition))
+             (listify (view-class-slot-db-constraints slot)))))
+    (member :default constraints)))
+
+(defmethod update-slot-default-values ((obj standard-db-object)
+                                       classes-and-slots)
+  "Makes sure that if a class has unfilled slots that claim to have a default,
+   that we retrieve those defaults from the database
+
+   TODO: use update slots-from-record instead to batch this!"
+  (loop for class-and-slots in (listify classes-and-slots)
+        do (loop for slot in (slot-defs class-and-slots)
+                 do (when (and (slot-has-default-p slot)
+                               (not (easy-slot-value obj slot)))
+                      (update-slot-from-record obj (to-slot-name slot))))))
 
 (defmethod update-records-from-instance ((obj standard-db-object)
-                                         &key database this-class)
+                                         &key (database *default-database*))
   "Updates the records in the database associated with this object if
    view-database slot on the object is nil then the object is assumed to be
    new and is inserted"
   (let ((database (choose-database-for-instance obj database))
-        (pk nil))
-    (let* ((view-class (or this-class (class-of obj)))
-           (pk-slot (car (keyslots-for-class view-class)))
-           (pk-name (when pk-slot (slot-definition-name pk-slot)))
-           (view-class-table (view-table view-class))
-           (sql-table (sql-expression :table view-class-table))
-           (pclass (car (class-direct-superclasses view-class))))
-      (when (normalizedp view-class)
-        (setf pk (update-records-from-instance obj :database database
-                                                   :this-class pclass))
-        (when pk-slot
-          (setf (slot-value obj pk-name) pk)))
-      (let ((record-values
-              (update-records-from-instance-slots-and-values
-               obj view-class database)))
-
-        (cond ((and (not (normalizedp view-class)) (not record-values))
-               (error "No settable slots."))
-              ((and (normalizedp view-class) (not record-values))
-               nil)
-              ((view-database obj)
-               ;; if this slot is set, the database object was returned from a select
-               ;; and has already been in the database, so we must need an update
-               (update-records sql-table
-                               :av-pairs record-values
-                               :where (key-qualifier-for-instance
-                                       obj :database database
-                                           :this-class view-class)
-                               :database database)
-               (when pk-slot
-                 (setf pk (or pk (slot-value obj pk-name)))))
-              (t
-               (insert-records :into sql-table
-                               :av-pairs record-values
-                               :database database)
-               (when (and pk-slot (not pk))
-                 (setf pk
-                       (when (auto-increment-column-p pk-slot database)
-                         (setf (slot-value obj pk-name)
-                               (database-last-auto-increment-id
-                                database view-class-table pk-slot)))))
-               (when pk-slot
-                 (setf pk (or pk
-                              (and (slot-boundp obj pk-name)
-                                   (slot-value obj pk-name)))))
-               (when (eql this-class nil)
-                 (setf (slot-value obj 'view-database) database))))))
-    ;; handle slots with defaults
-    (let* ((view-class (or this-class (class-of obj)))
-	   (slots (if (normalizedp view-class)
-                      (ordered-class-direct-slots view-class)
-                      (ordered-class-slots view-class))))
-      (dolist (slot slots)
-        (let ((slot-name (slot-definition-name slot)))
-          (when (and (slot-exists-p slot 'db-constraints)
-                     (listp (view-class-slot-db-constraints slot))
-                     (member :default (view-class-slot-db-constraints slot)))
-            (unless (and (slot-boundp obj slot-name)
-                         (slot-value obj slot-name))
-              (update-slot-from-record obj slot-name))))))
-
-    pk))
+        (classes-and-slots (view-classes-and-storable-slots-for-instance obj)))
+    (loop for class-and-slots in classes-and-slots
+          do (%update-instance-helper class-and-slots obj database))
+    (primary-key-slot-values obj)))
 
 (defmethod delete-instance-records ((instance standard-db-object) &key database)
   (let ((database (choose-database-for-instance instance database))
@@ -411,10 +440,6 @@
 	(setf (slot-value instance 'view-database) vd)
         (get-slot-values-from-view instance (list slot-def) (car res))))))
 
-(defmethod update-slot-with-null ((object standard-db-object)
-                                  slotname
-                                  slotdef)
-  (setf (slot-value object slotname) (slot-value slotdef 'void-value)))
 
 (defvar +no-slot-value+ '+no-slot-value+)
 

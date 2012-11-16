@@ -16,6 +16,11 @@
 
 (in-package #:clsql-sys)
 
+(defmacro defaulting (&rest place-value-plist)
+  `(progn
+    ,@(loop for (place value . rest) on place-value-plist by #'cddr
+            collect `(unless ,place (setf ,place ,value)))))
+
 (defun %get-int (v)
   (etypecase v
     (string (parse-integer v :junk-allowed t))

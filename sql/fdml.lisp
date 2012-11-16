@@ -12,6 +12,31 @@
 
 (in-package #:clsql-sys)
 
+;; some helpers to make dealing with attribute-value-pairs a bit more structured
+(defclass attribute-value-pair ()
+  ((attribute :accessor attribute :initarg :attribute :initform nil)
+   (db-value :accessor db-value :initarg :db-value :initform nil))
+  (:documentation "Represents an attribute-sql-expression and its value, used
+   to pass to insert/update. Was previously a two list"))
+
+(defun make-attribute-value-pair (slot-def value database)
+  (check-slot-type slot-def value)
+  (make-instance
+   'attribute-value-pair
+   :attribute (sql-expression :attribute (database-identifier slot-def database))
+   :db-value (db-value-from-slot slot-def value database)))
+
+(defun to-attributes-and-values (av-pairs)
+  (etypecase (first av-pairs)
+    (list
+     (loop for (a v) in av-pairs
+           finally (return (values a v))))
+    (attribute-value-pair
+     (loop for pair in av-pairs
+           collecting (attribute pair) into attributes
+           collecting (db-value pair) into db-values
+           finally (return (values attributes db-values))))))
+
 ;;; Basic operations on databases
 
 (defmethod database-query-result-set ((expr %sql-expression) database
@@ -110,51 +135,59 @@ used."
                             (database *default-database*))
   "Inserts records into the table specified by INTO in DATABASE
 which defaults to *DEFAULT-DATABASE*. There are five ways of
-specifying the values inserted into each row. In the first VALUES
-contains a list of values to insert and ATTRIBUTES, AV-PAIRS and
-QUERY are nil. This can be used when values are supplied for all
-attributes in INTO. In the second, ATTRIBUTES is a list of column
-names, VALUES is a corresponding list of values and AV-PAIRS and
-QUERY are nil. In the third, ATTRIBUTES, VALUES and QUERY are nil
-and AV-PAIRS is an alist of (attribute value) pairs. In the
-fourth, VALUES, AV-PAIRS and ATTRIBUTES are nil and QUERY is a
-symbolic SQL query expression in which the selected columns also
-exist in INTO. In the fifth method, VALUES and AV-PAIRS are nil
-and ATTRIBUTES is a list of column names and QUERY is a symbolic
-SQL query expression which returns values for the specified
-columns."
+specifying the values inserted into each row.
+
+In the first VALUES contains a list of values to insert and ATTRIBUTES,
+AV-PAIRS and QUERY are nil. This can be used when values are supplied for all
+attributes in INTO.
+
+In the second, ATTRIBUTES is a list of column names, VALUES is a corresponding
+list of values and AV-PAIRS and QUERY are nil.
+
+In the third, ATTRIBUTES, VALUES and QUERY are nil and AV-PAIRS is a list
+of (attribute value) pairs, or attribute-value-pair objects.
+
+In the fourth, VALUES, AV-PAIRS and ATTRIBUTES are nil and QUERY is a symbolic
+SQL query expression in which the selected columns also exist in INTO.
+
+In the fifth method, VALUES and AV-PAIRS are nil and ATTRIBUTES is a list of
+column names and QUERY is a symbolic SQL query expression which returns values
+for the specified columns."
   (let ((stmt (make-sql-insert :into into :attrs attributes
                                :vals values :av-pairs av-pairs
                                :subquery query)))
     (execute-command stmt :database database)))
 
 (defun make-sql-insert (&key (into nil)
-                            (attrs nil)
-                            (vals nil)
-                            (av-pairs nil)
-                            (subquery nil))
+                        (attrs nil)
+                        (vals nil)
+                        (av-pairs nil)
+                        (subquery nil))
   (unless into
-      (error 'sql-user-error :message ":into keyword not supplied"))
+    (error 'sql-user-error :message ":into keyword not supplied"))
   (let ((insert (make-instance 'sql-insert :into (database-identifier into nil))))
-    (with-slots (attributes values query)
-      insert
+    (with-slots (attributes values query) insert
 
       (cond ((and vals (not attrs) (not query) (not av-pairs))
              (setf values vals))
+
             ((and vals attrs (not subquery) (not av-pairs))
              (setf attributes attrs)
              (setf values vals))
+
             ((and av-pairs (not vals) (not attrs) (not subquery))
-             (setf attributes (mapcar #'car av-pairs))
-             (setf values (mapcar #'cadr av-pairs)))
+             (multiple-value-setq (attributes values)
+               (to-attributes-and-values av-pairs)))
+
             ((and subquery (not vals) (not attrs) (not av-pairs))
              (setf query subquery))
+
             ((and subquery attrs (not vals) (not av-pairs))
              (setf attributes attrs)
              (setf query subquery))
-            (t
-             (error 'sql-user-error
-                    :message "bad or ambiguous keyword combination.")))
+
+            (t (error 'sql-user-error
+                      :message "bad or ambiguous keyword combination.")))
       insert)))
 
 (defun delete-records (&key (from nil)
@@ -182,8 +215,8 @@ is a list of column names, VALUES is a corresponding list of
 values and AV-PAIRS is nil. In the third, ATTRIBUTES and VALUES
 are nil and AV-PAIRS is an alist of (attribute value) pairs."
   (when av-pairs
-    (setf attributes (mapcar #'car av-pairs)
-          values (mapcar #'cadr av-pairs)))
+    (multiple-value-setq (attributes values)
+      (to-attributes-and-values av-pairs)))
   (let ((stmt (make-instance 'sql-update :table (database-identifier table database)
                              :attributes attributes
                              :values values
