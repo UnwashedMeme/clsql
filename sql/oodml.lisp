@@ -178,23 +178,6 @@
         do (update-slot-from-db-value obj slot value))
   obj)
 
-(defun to-slot-name (slot)
-  "try to turn what we got representing the slot into a slot name"
-  (etypecase slot
-    (symbol slot)
-    (slot-definition (slot-definition-name slot))))
-
-(defun easy-slot-value (obj slot)
-  "like slot-value except it accepts slot-names or defs
-   and returns nil when the slot is unbound"
-  (let ((n (to-slot-name slot)))
-    (when (slot-boundp obj n)
-      (slot-value obj n))))
-
-(defun (setf easy-slot-value) (new obj slot)
-  "like slot-value except it accepts slot-names or defs"
-  (setf (slot-value obj (to-slot-name slot)) new))
-
 (defclass class-and-slots ()
   ((view-class :accessor view-class :initarg :view-class :initform nil)
    (slot-defs :accessor slot-defs :initarg :slot-defs :initform nil))

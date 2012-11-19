@@ -77,7 +77,7 @@ represented by SLOTS are initialised from the values of the
 supplied slots with other attributes having default
 values. Furthermore, OBJECT becomes associated with DATABASE."))
 
-(defgeneric update-records-from-instance (object &key database this-class)
+(defgeneric update-records-from-instance (object &key database)
   (:documentation
    "Using an instance of a View Class, OBJECT, update the table
 that stores its instance data. DATABASE defaults to
@@ -122,7 +122,7 @@ effects. Methods specialised on particular View Classes can be
 used to specify any operations that need to be made on View
 Classes instances which have been updated in calls to SELECT."))
 
-(defgeneric update-slot-with-null (instance slotname slotdef)
+(defgeneric update-slot-with-null (instance slotdef)
   (:documentation "Called to update a slot when its column has a NULL
 value.  If nulls are allowed for the column, the slot's value will be
 nil, otherwise its value will be set to the result of calling
