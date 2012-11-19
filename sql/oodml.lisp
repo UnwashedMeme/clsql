@@ -944,19 +944,22 @@ maximum of MAX-LEN instances updated in each query."
         (select jc :where jq :flatp t :result-types nil
                 :database (choose-database-for-instance object))))))
 
+
+
 (defun fault-join-slot (class object slot-def)
   (let* ((dbi (view-class-slot-db-info slot-def))
-         (ts (gethash :target-slot dbi)))
-    (if (and ts (gethash :set dbi))
+         (ts (gethash :target-slot dbi))
+         (dbi-set (gethash :set dbi)))
+    (if (and ts dbi-set)
         (fault-join-target-slot class object slot-def)
         (let ((res (fault-join-slot-raw class object slot-def)))
           (when res
             (cond
-              ((and ts (not (gethash :set dbi)))
+              ((and ts (not dbi-set))
                (mapcar (lambda (obj) (slot-value obj ts)) res))
-              ((and (not ts) (not (gethash :set dbi)))
+              ((and (not ts) (not dbi-set))
                (car res))
-              ((and (not ts) (gethash :set dbi))
+              ((and (not ts) dbi-set)
                res)))))))
 
 ;;;; Should we not return the whole result, instead of only
@@ -970,39 +973,37 @@ maximum of MAX-LEN instances updated in each query."
                    (getsc sc)))))
     (let* ((sc (getsc class))
            (hk (slot-definition-name (car (key-slots class))))
-           (fk (slot-definition-name (car (key-slots sc)))))
-      (let ((jq (sql-operation '==
-                               (typecase fk
-                                 (symbol
-                                  (sql-expression
-                                   :attribute
-                                   (database-identifier
-                                    (slotdef-for-slot-with-class fk sc) nil)
-                                   :table (view-table sc)))
-                                 (t fk))
-                               (typecase hk
-                                 (symbol
-                                  (slot-value object hk))
-                                 (t hk)))))
-
-        ;; Caching nil in next select, because in normalized mode
-        ;; records can be changed through other instances (children,
-        ;; parents) so changes possibly won't be noticed
-        (let ((res (car (select (class-name sc) :where jq
-                                                :flatp t :result-types nil
-                                                :caching nil
-                                                :database (choose-database-for-instance object))))
-              (slot-name (slot-definition-name slot-def)))
-
-          ;; If current class is normalized and wanted slot is not
-          ;; a direct member, recurse up
-          (if (and (normalizedp class)
-                   (not (member slot-name
-                                (mapcar #'(lambda (esd) (slot-definition-name esd))
-                                        (ordered-class-direct-slots class))))
-                   (not (slot-boundp res slot-name)))
-              (fault-join-normalized-slot sc res slot-def)
-              (slot-value res slot-name)))))) )
+           (fk (slot-definition-name (car (key-slots sc))))
+           (jq (sql-operation '==
+                              (typecase fk
+                                (symbol
+                                 (sql-expression
+                                  :attribute
+                                  (database-identifier
+                                   (slotdef-for-slot-with-class fk sc) nil)
+                                  :table (view-table sc)))
+                                (t fk))
+                              (typecase hk
+                                (symbol (slot-value object hk))
+                                (t hk)))))
+      ;; Caching nil in next select, because in normalized mode
+      ;; records can be changed through other instances (children,
+      ;; parents) so changes possibly won't be noticed
+      (let ((res (car (select
+                          (sql-expression
+                           :attribute
+                           (database-identifier
+                            (slot-definition-name slot-def)))
+                        :from (sql-expression :table (class-name sc))
+                        :where jq
+                        :flatp t
+                        :result-types nil
+                        :caching nil
+                        :database (choose-database-for-instance object))))
+            (slot-name (slot-definition-name slot-def)))
+        (if (and (not res) (direct-normalized-slot-p class slot-name))
+            (fault-join-normalized-slot sc object slot-def)
+            res)))))
 
 (defun join-qualifier (class object slot-def)
   (declare (ignore class))
