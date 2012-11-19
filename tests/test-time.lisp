@@ -8,7 +8,14 @@
 (clsql-sys:file-enable-sql-reader-syntax)
 
 (def-view-class datetest ()
-  ((testtimetz :column "testtimetz"
+  ((id :column "id"
+                :type integer
+                :db-kind :key
+                :db-constraints (:not-null :unique)
+	        :accessor id :initarg :id
+                :initform nil
+	        :db-type "int4")
+   (testtimetz :column "testtimetz"
                 :type clsql-sys:wall-time
                 :db-kind :base
                 :db-constraints nil
@@ -390,8 +397,8 @@
   (with-dataset *ds-datetest*
     (let ((time (parse-timestring "2008-09-09T14:37:29.000213-04:00")))
       (clsql-sys:insert-records :into [datetest]
-				:attributes '([testtimetz] [testtime])
-				:values (list time time))
+				:attributes '([testtimetz] [testtime] [id])
+				:values (list time time 1))
       (destructuring-bind (testtimetz testtime)
 	  (first (clsql:select [testtimetz] [testtime]
 			       :from [datetest]
@@ -406,7 +413,7 @@
   (with-dataset *ds-datetest*
     (let ((time (parse-timestring "2008-09-09T14:37:29-04:00")))
       (clsql-sys:update-records-from-instance
-       (make-instance 'datetest :testtimetz time :testtime time))
+       (make-instance 'datetest :testtimetz time :testtime time :id 1))
       (let ((o (first (clsql:select
 			  'datetest
 			:limit 1 :flatp t
@@ -423,7 +430,7 @@
     (with-dataset *ds-datetest*
       (let ((time (parse-timestring "2008-09-09T14:37:29.000278-04:00")))
 	(clsql-sys:update-records-from-instance
-	 (make-instance 'datetest :testtimetz time :testtime time))
+	 (make-instance 'datetest :testtimetz time :testtime time :id 1))
 	(let ((o (first (clsql:select
 			 'datetest
 			 :limit 1 :flatp t
