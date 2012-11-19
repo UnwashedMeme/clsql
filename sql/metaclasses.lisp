@@ -439,13 +439,33 @@ implementations."
 (defun compute-column-name (arg)
   (database-identifier arg nil))
 
+(defun %convert-db-info-to-hash (slot-def)
+  ;; I wonder if this slot option and the previous could be merged,
+  ;; so that :base and :key remain keyword options, but :db-kind
+  ;; :join becomes :db-kind (:join <db info .... >)?
+  (setf (slot-value slot-def 'db-info)
+        (when (slot-boundp slot-def 'db-info)
+          (let ((info (view-class-slot-db-info slot-def)))
+            (etypecase info
+              (hash-table info)
+              (atom info)
+              (list
+               (cond ((and (> (length info) 1)
+                           (atom (car info)))
+                      (parse-db-info info))
+                     ((and (= 1 (length info))
+                           (listp (car info)))
+                      (parse-db-info (car info)))
+                     (t info))))))))
+
 (defmethod initialize-instance :after
     ((obj view-class-direct-slot-definition)
      &key &allow-other-keys)
   (setf (view-class-slot-column obj) (compute-column-name obj)
         (view-class-slot-autoincrement-sequence obj)
         (dequote
-         (view-class-slot-autoincrement-sequence obj))))
+         (view-class-slot-autoincrement-sequence obj)))
+  (%convert-db-info-to-hash obj))
 
 (defmethod compute-effective-slot-definition ((class standard-db-class)
                                               #+kmr-normal-cesd slot-name
@@ -475,24 +495,9 @@ implementations."
            ;; :db-kind slot value defaults to :base (store slot value in
            ;; database)
            (safe-copy-value db-kind :base)
-           (safe-copy-value db-constraints))
-
-         ;; I wonder if this slot option and the previous could be merged,
-         ;; so that :base and :key remain keyword options, but :db-kind
-         ;; :join becomes :db-kind (:join <db info .... >)?
-
-         (setf (slot-value esd 'db-info)
-               (when (slot-boundp dsd 'db-info)
-                 (let ((dsd-info (view-class-slot-db-info dsd)))
-                   (cond
-                     ((atom dsd-info)
-                      dsd-info)
-                     ((and (listp dsd-info) (> (length dsd-info) 1)
-                           (atom (car dsd-info)))
-                      (parse-db-info dsd-info))
-                     ((and (listp dsd-info) (= 1 (length dsd-info))
-                           (listp (car dsd-info)))
-                      (parse-db-info (car dsd-info)))))))
+           (safe-copy-value db-constraints)
+           (safe-copy-value db-info)
+           (%convert-db-info-to-hash esd))
 
          (setf (specified-type esd)
                (delistify-dsd (specified-type dsd)))
