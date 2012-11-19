@@ -449,6 +449,12 @@ removed. keys are searched with #'MEMBER"
     (symbol slot)
     (slot-definition (slot-definition-name slot))))
 
+(defun to-class (it)
+  (etypecase it
+    (class it)
+    (symbol (find-class it))
+    (standard-object (class-of it))))
+
 (defun easy-slot-value (obj slot)
   "like slot-value except it accepts slot-names or defs
    and returns nil when the slot is unbound"
@@ -459,3 +465,4 @@ removed. keys are searched with #'MEMBER"
 (defun (setf easy-slot-value) (new obj slot)
   "like slot-value except it accepts slot-names or defs"
   (setf (slot-value obj (to-slot-name slot)) new))
+

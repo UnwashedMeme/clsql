@@ -103,17 +103,6 @@
                                           base-table))
                                  (class-name class)))))
 
-(defgeneric ordered-class-direct-slots (class))
-(defmethod ordered-class-direct-slots ((self standard-db-class))
-  (let ((direct-slot-names
-         (mapcar #'slot-definition-name (class-direct-slots self)))
-        (ordered-direct-class-slots '()))
-    (dolist (slot (ordered-class-slots self))
-      (let ((slot-name (slot-definition-name slot)))
-        (when (find slot-name direct-slot-names)
-          (push slot ordered-direct-class-slots))))
-    (nreverse ordered-direct-class-slots)))
-
 (defmethod initialize-instance :around ((class standard-db-class)
                                         &rest all-keys
                                         &key direct-superclasses base-table
@@ -201,18 +190,14 @@
     (setf (key-slots class) (remove-if-not (lambda (slot)
                                              (eql (slot-value slot 'db-kind)
                                                   :key))
-                                           (if (normalizedp class)
-                                               (ordered-class-direct-slots class)
-                                               (ordered-class-slots class))))))
+                                           (slots-for-possibly-normalized-class class)))))
 
 #+(or sbcl allegro)
 (defmethod finalize-inheritance :after ((class standard-db-class))
   (setf (key-slots class) (remove-if-not (lambda (slot)
                                            (eql (slot-value slot 'db-kind)
                                                 :key))
-                                         (if (normalizedp class)
-                                             (ordered-class-direct-slots class)
-                                             (ordered-class-slots class)))))
+                                         (slots-for-possibly-normalized-class class))))
 
 ;; return the deepest view-class ancestor for a given view class
 
@@ -586,3 +571,31 @@ implementations."
   (and (setf cls (ignore-errors (find-class name)))
        (typep cls 'standard-db-class)
        cls))
+
+(defun slots-for-possibly-normalized-class (class)
+  (if (normalizedp class)
+      (ordered-class-direct-slots class)
+      (ordered-class-slots class)))
+
+(defun direct-normalized-slot-p (class slot-name)
+  "Is this a normalized class and if so is the slot one of our direct slots?"
+  (setf slot-name (to-slot-name slot-name))
+  (and (normalizedp class)
+       (member slot-name (ordered-class-direct-slots class)
+               :key #'slot-definition-name)))
+
+(defun not-direct-normalized-slot-p (class slot-name)
+  "Is this a normalized class and if so is the slot not one of our direct slots?"
+  (setf slot-name (to-slot-name slot-name))
+  (and (normalizedp class)
+       (not (member slot-name (ordered-class-direct-slots class)
+                    :key #'slot-definition-name))))
+
+(defun slot-has-default-p (slot)
+  "returns nil if the slot does not have a default constraint"
+  (let* ((constraints
+           (when (typep slot '(or view-class-direct-slot-definition
+                               view-class-effective-slot-definition))
+             (listify (view-class-slot-db-constraints slot)))))
+    (member :default constraints)))
+

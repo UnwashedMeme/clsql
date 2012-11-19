@@ -106,9 +106,7 @@ in DATABASE which defaults to *DEFAULT-DATABASE*."
 (defmethod %install-class ((self standard-db-class) database
                            &key (transactions t))
   (let ((schemadef '())
-        (ordered-slots (if (normalizedp self)
-                           (ordered-class-direct-slots self)
-                           (ordered-class-slots self))))
+        (ordered-slots (slots-for-possibly-normalized-class self)))
     (dolist (slotdef ordered-slots)
       (let ((res (database-generate-column-definition self slotdef database)))
         (when res

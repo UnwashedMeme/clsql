@@ -202,14 +202,6 @@
         for v = (easy-slot-value o s)
         collect (make-attribute-value-pair s v database)))
 
-(defun find-class-slot-by-name (class slot-name direct?)
-  "Looks up a direct-slot-definition by name"
-  (find (to-slot-name slot-name)
-        (if direct?
-            (ordered-class-direct-slots class)
-            (ordered-class-slots class))
-        :key #'slot-definition-name))
-
 (defmethod view-classes-and-slots-by-name ((obj standard-db-object) slots-to-match)
   "If it's normalized, find the class that actually contains
    the slot that's tied to the db,
@@ -236,7 +228,7 @@
                              until (find-slot-for-return new-class slot))))
                  sd)))
       (loop
-        for in-slot in slots-to-match
+        for in-slot in (listify slots-to-match)
         do (find-slot-for-return view-class in-slot)))
     rtns))
 
@@ -256,7 +248,7 @@
            (let ((where (key-qualifier-for-instance
                          obj :database database :this-class view-class)))
              (unless where
-               (error "update-record-from-slots: could not generate a where clause for ~a using ~A"
+               (error "update-record-from-*: could not generate a where clause for ~a using ~A"
                       obj view-class))
              (update-records table-sql
                              :av-pairs avps
@@ -305,14 +297,12 @@
   "
   (let* ((view-class (class-of obj))
          rtns)
-    (labels ((storable-slots (class normalizedp)
-               (loop for sd in (if normalizedp
-                                   (ordered-class-direct-slots class)
-                                   (ordered-class-slots class))
+    (labels ((storable-slots (class)
+               (loop for sd in (slots-for-possibly-normalized-class class)
                      when (%slot-storedp obj sd)
                      collect sd))
              (get-classes-and-slots (class &aux (normalizedp (normalizedp class)))
-               (let ((slots (storable-slots class normalizedp)))
+               (let ((slots (storable-slots class)))
                  (when slots
                    (push (make-class-and-slots class slots) rtns)))
                (when normalizedp
@@ -328,14 +318,6 @@
               slots (keyslots-for-class class))
   (loop for slot in slots
         collect (easy-slot-value obj slot)))
-
-(defun slot-has-default-p (slot)
-  "returns nil if the slot does not have a default constraint"
-  (let* ((constraints
-           (when (typep slot '(or view-class-direct-slot-definition
-                               view-class-effective-slot-definition))
-             (listify (view-class-slot-db-constraints slot)))))
-    (member :default constraints)))
 
 (defmethod update-slot-default-values ((obj standard-db-object)
                                        classes-and-slots)
@@ -408,9 +390,7 @@
       (setf view-class
             (do ((this-class view-class
                              (car (class-direct-superclasses this-class))))
-                ((member slot
-                         (mapcar #'(lambda (esd) (slot-definition-name esd))
-                                 (ordered-class-direct-slots this-class)))
+                ((direct-normalized-slot-p this-class slot)
                  this-class))))
     (let* ((view-table (sql-expression :table (view-table view-class)))
            (vd (choose-database-for-instance instance database))
@@ -1055,10 +1035,7 @@ maximum of MAX-LEN instances updated in each query."
                (mapc #'(lambda (jo)
                          ;; find all immediate-select slots and join-vals for this object
                          (let* ((jo-class (class-of jo))
-                                (slots
-                                 (if (normalizedp jo-class)
-                                     (class-direct-slots jo-class)
-                                     (class-slots jo-class)))
+                                (slots (slots-for-possibly-normalized-class jo-class))
                                 (pos-list (remove-if #'null
                                                      (mapcar
                                                       #'(lambda (s)

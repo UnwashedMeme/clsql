@@ -58,6 +58,23 @@
   #+mop-slot-order-reversed (reverse (class-slots class))
   #-mop-slot-order-reversed (class-slots class))
 
+(defun ordered-class-direct-slots (class)
+  "Gets an ordered list of direct class slots"
+  ;; NB: this used to return effective-slot-definitions in direct
+  ;; opposition to the function name.  Not sure why
+  (setf class (to-class class))
+  #+mop-slot-order-reversed (reverse (class-direct-slots class))
+  #-mop-slot-order-reversed (class-direct-slots class))
+
+(defun find-class-slot-by-name (class slot-name &optional direct?)
+  "Looks up a direct-slot-definition by name"
+  (setf class (to-class class))
+  (find (to-slot-name slot-name)
+        (if direct?
+            (ordered-class-direct-slots class)
+            (ordered-class-slots class))
+        :key #'slot-definition-name))
+
 ;; Lispworks has symbol for slot rather than the slot instance
 (defun %svuc-slot-name (slot)
   #+lispworks slot

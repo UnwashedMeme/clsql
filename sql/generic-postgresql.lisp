@@ -284,11 +284,8 @@
 
 (defmethod database-add-autoincrement-sequence
     ((self standard-db-class) (database generic-postgresql-database))
-  (let ((ordered-slots (if (normalizedp self)
-                           (ordered-class-direct-slots self)
-                           (ordered-class-slots self))))
+  (let ((ordered-slots (slots-for-possibly-normalized-class self)))
     (dolist (slotdef ordered-slots)
-
       ;; ensure that referenceed sequences actually exist before referencing them
       (let ((sequence-name (auto-increment-sequence-name self slotdef database)))
         (when (and sequence-name
@@ -298,10 +295,7 @@
 (defmethod database-remove-autoincrement-sequence
     ((table standard-db-class)
      (database generic-postgresql-database))
-  (let ((ordered-slots
-          (if (normalizedp table)
-              (ordered-class-direct-slots table)
-              (ordered-class-slots table))))
+  (let ((ordered-slots (slots-for-possibly-normalized-class table)))
     (dolist (slotdef ordered-slots)
       ;; ensure that referenceed sequences are dropped with the table
       (let ((sequence-name (auto-increment-sequence-name table slotdef database)))
