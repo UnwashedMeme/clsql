@@ -578,17 +578,39 @@ implementations."
        cls))
 
 (defun slots-for-possibly-normalized-class (class)
+  "Get the slots for this class, if normalized this is only the direct slots
+   otherwiese its all the slots"
   (if (normalizedp class)
       (ordered-class-direct-slots class)
       (ordered-class-slots class)))
+
 
 (defun key-slot-p (slot-def)
   "takes a slot def and returns whether or not it is a key"
   (eql :key (view-class-slot-db-kind slot-def)))
 
 (defun join-slot-p (slot-def)
-  "takes a slot def and returns whether or not it is a key"
+  "takes a slot def and returns whether or not it is a join slot"
   (eql :join (view-class-slot-db-kind slot-def)))
+
+(defun join-slot-info-value (slot-def key)
+  "Get the join-slot db-info value associated with a key"
+  (when (join-slot-p slot-def)
+    (let ((dbi (view-class-slot-db-info slot-def)))
+      (when dbi (gethash key dbi)))))
+
+(defun join-slot-retrieval-method (slot-def)
+  "if this is a join slot return the retrieval param in the db-info"
+  (join-slot-info-value slot-def :retrieval))
+
+(defun join-slot-class-name (slot-def)
+  "get the join class name for a given join slot"
+  (join-slot-info-value slot-def :join-class))
+
+(defun join-slot-class (slot-def)
+  "Get the join class for a given join slot"
+  (let ((c (join-slot-class-name slot-def)))
+    (when c (find-class c))))
 
 (defun key-or-base-slot-p (slot-def)
   "takes a slot def and returns whether or not it is a key"

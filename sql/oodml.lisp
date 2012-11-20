@@ -13,6 +13,7 @@
 (in-package #:clsql-sys)
 
 (defun find-normalized-key (obj)
+  "Find the first / primary key of a normalized object"
   (find-slot-if obj #'key-slot-p T T))
 
 (defun normalized-key-value (obj)
@@ -21,6 +22,7 @@
     (easy-slot-value obj (find-normalized-key obj))))
 
 (defun key-qualifier-for-instance (obj &key (database *default-database*) this-class)
+  "Generate a boolean sql-expression that identifies an object by its keys"
   (let* ((obj-class (or this-class (class-of obj)))
          (keys (keyslots-for-class obj-class))
          (normal-db-value (normalized-key-value obj)))
@@ -105,6 +107,7 @@
 
 
 (defmethod update-slot-with-null ((object standard-db-object) slotdef)
+  "sets a slot to the void value of the slot-def (usually nil)"
   (setf (easy-slot-value object slotdef)
         (slot-value slotdef 'void-value)))
 
@@ -131,6 +134,7 @@
                   (format nil slot-reader value))))))))
 
 (defmethod key-value-from-db (slotdef value database)
+  "TODO: is this deprecated? there are no uses anywhere in clsql"
   (declare (optimize (speed 3) #+cmu (extensions:inhibit-warnings 3)))
   (let ((slot-reader (view-class-slot-db-reader slotdef))
         (slot-type (specified-type slotdef)))
@@ -322,9 +326,7 @@
     ((obj standard-db-object) slot &key (database *default-database*))
   (update-record-from-slots obj slot :database database))
 
-
-
-(defmethod view-classes-and-storable-slots-for-instance ((obj standard-db-object))
+(defun view-classes-and-storable-slots (class)
   "Get a list of all the tables we need to update and the slots on them
 
    for non normalized classes we return the class and all its storable slots
@@ -332,8 +334,8 @@
    for normalized classes we return a list of direct slots and the class they
    came from for each normalized view class
   "
-  (let* ((view-class (class-of obj))
-         rtns)
+  (setf class (to-class class))
+  (let* (rtns)
     (labels ((storable-slots (class)
                (loop for sd in (slots-for-possibly-normalized-class class)
                      when (key-or-base-slot-p sd)
@@ -346,7 +348,7 @@
                  (loop for new-class in (class-direct-superclasses class)
                        do (when (typep new-class 'standard-db-class)
                             (get-classes-and-slots new-class))))))
-      (get-classes-and-slots view-class))
+      (get-classes-and-slots class))
     rtns))
 
 (defmethod primary-key-slot-values ((obj standard-db-object)
@@ -374,7 +376,7 @@
    view-database slot on the object is nil then the object is assumed to be
    new and is inserted"
   (let ((database (choose-database-for-instance obj database))
-        (classes-and-slots (view-classes-and-storable-slots-for-instance obj)))
+        (classes-and-slots (view-classes-and-storable-slots obj)))
     (loop for class-and-slots in classes-and-slots
           do (%update-instance-helper class-and-slots obj database))
     (setf (slot-value obj 'view-database) database)
