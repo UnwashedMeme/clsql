@@ -30,7 +30,9 @@
   (etypecase (first av-pairs)
     (list
      (loop for (a v) in av-pairs
-           finally (return (values a v))))
+           collect a into attributes
+           collect v into db-values
+           finally (return (values attributes db-values))))
     (attribute-value-pair
      (loop for pair in av-pairs
            collecting (attribute pair) into attributes
