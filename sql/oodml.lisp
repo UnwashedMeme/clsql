@@ -272,15 +272,15 @@
           (chain-primary-keys direct-class)))
       new-pk-value)))
 
-(defmethod %update-instance-helper (class-and-slots obj database)
+(defmethod %update-instance-helper
+    (class-and-slots obj database
+     &aux (avps (attribute-value-pairs class-and-slots obj database)))
+  ;; we dont actually need to update anything on this particular parent class
+  (unless avps (return-from %update-instance-helper))
+
   (let* ((view-class (view-class class-and-slots))
          (table (view-table view-class))
-         (table-sql (sql-expression :table table))
-         (avps (attribute-value-pairs class-and-slots obj database)))
-
-    (unless avps
-      (error "Unable to update records for ~A ~A ~A~% for this classes and slots ~A~%~A"
-             view-class table obj class-and-slots avps))
+         (table-sql (sql-expression :table table)))
 
     ;; view database is the flag we use to tell it was pulled from a database
     ;; and thus probably needs an update instead of an insert
