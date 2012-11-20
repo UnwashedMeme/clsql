@@ -877,87 +877,93 @@
   "The default value to use for the MAX-LEN keyword argument to
   UPDATE-OBJECT-JOINS.")
 
+(defun %update-objects-joins-slot-defs (class slot-names)
+  "Get the slot definitions for the joins slots specified as slot-names
+   if slot-names is T return all deferred slots"
+  (setf class (to-class class))
+  (if (eq t slot-names)
+      (generate-retrieval-joins-list class :deferred)
+      (loop for slot in slot-names
+            for def = (find-slot-by-name class slot)
+            if (and def (join-slot-p def))
+            collecting def
+            do (warn "Unable to find join slot named ~S in class ~S." slot class))))
+
+(defun get-joined-objects (objects slotdef &optional force-p max-len)
+  "Given a list of objects and a join slot-def get the objects that need to be
+   joined to the input objects"
+  (when (join-slot-p slotdef)
+    (let* ((slot-name (to-slot-name slotdef))
+           (join-class (join-slot-class-name slotdef))
+           (home-key (join-slot-info-value slotdef :home-key))
+           (foreign-key (join-slot-info-value slotdef :foreign-key))
+           (foreign-key-values
+             (loop for object in objects
+                   when (or force-p
+                            (not (slot-boundp object slot-name)))
+                   collect (slot-value object home-key))))
+      (find-all
+       (list join-class)
+       :where (make-instance
+               'sql-relational-exp
+               :operator 'in
+               :sub-expressions (list (sql-expression :attribute foreign-key)
+                                      foreign-key-values))
+       :result-types :auto
+       :flatp t
+       :limit max-len)
+      )))
+
+(defun %object-joins-from-list (object slot joins force-p )
+  "Given a list of objects that we are trying to join to, pull the correct
+   ones for this object"
+  (when (or force-p (not (slot-boundp object (to-slot-name slot))))
+    (let ((home-key (join-slot-info-value slot :home-key))
+          (foreign-key (join-slot-info-value slot :foreign-key)))
+      (loop for join in joins
+            when (equal (slot-value join foreign-key)
+                        (slot-value object home-key))
+            collect join))))
+
 (defun update-objects-joins (objects &key (slots t) (force-p t)
-                             class-name (max-len
-                                         *default-update-objects-max-len*))
-  "Updates from the records of the appropriate database tables
-the join slots specified by SLOTS in the supplied list of View
-Class instances OBJECTS.  SLOTS is t by default which means that
-all join slots with :retrieval :immediate are updated. CLASS-NAME
-is used to specify the View Class of all instance in OBJECTS and
-default to nil which means that the class of the first instance
-in OBJECTS is used. FORCE-P is t by default which means that all
-join slots are updated whereas a value of nil means that only
-unbound join slots are updated. MAX-LEN defaults to
-*DEFAULT-UPDATE-OBJECTS-MAX-LEN* and when non-nil specifies that
-UPDATE-OBJECT-JOINS may issue multiple database queries with a
-maximum of MAX-LEN instances updated in each query."
+                                     class-name (max-len *default-update-objects-max-len*))
+  "Updates from the records of the appropriate database tables the join slots
+   specified by SLOTS in the supplied list of View Class instances OBJECTS.
+
+   SLOTS is t by default which means that all join slots
+   with :retrieval :immediate (TODO: the code seems to say deffered) are updated.
+
+   CLASS-NAME is used to specify the View Class of all instance in OBJECTS and
+   default to nil which means that the class of the first instance in OBJECTS
+   is used.
+
+   FORCE-P is t by default which means that all join slots are updated whereas
+   a value of nil means that only unbound join slots are updated.
+
+   MAX-LEN defaults to *DEFAULT-UPDATE-OBJECTS-MAX-LEN* and when non-nil
+   specifies that UPDATE-OBJECT-JOINS may issue multiple database queries with
+   a maximum of MAX-LEN instances updated in each query."
   (assert (or (null max-len) (plusp max-len)))
   (when objects
-    (unless class-name
-      (setq class-name (class-name (class-of (first objects)))))
+    (defaulting class-name (class-name (class-of (first objects))))
     (let* ((class (find-class class-name))
-           (class-slots (ordered-class-slots class))
-           (slotdefs
-            (if (eq t slots)
-                (generate-retrieval-joins-list class :deferred)
-                (remove-if #'null
-                           (mapcar #'(lambda (name)
-                                       (let ((slotdef (find name class-slots :key #'slot-definition-name)))
-                                         (unless slotdef
-                                           (warn "Unable to find slot named ~S in class ~S." name class))
-                                         slotdef))
-                                   slots)))))
-      (dolist (slotdef slotdefs)
-        (let* ((dbi (view-class-slot-db-info slotdef))
-               (slotdef-name (slot-definition-name slotdef))
-               (foreign-key (gethash :foreign-key dbi))
-               (home-key (gethash :home-key dbi))
-               (object-keys
-                (remove-duplicates
-                 (if force-p
-                     (mapcar #'(lambda (o) (slot-value o home-key)) objects)
-                     (remove-if #'null
-                                (mapcar
-                                 #'(lambda (o) (if (slot-boundp o slotdef-name)
-                                                   nil
-                                                   (slot-value o home-key)))
-                                 objects)))))
-               (n-object-keys (length object-keys))
-               (query-len (or max-len n-object-keys)))
-
-          (do ((i 0 (+ i query-len)))
-              ((>= i n-object-keys))
-            (let* ((keys (if max-len
-                             (subseq object-keys i (min (+ i query-len) n-object-keys))
-                             object-keys))
-                   (results (unless (gethash :target-slot dbi)
-                              (find-all (list (gethash :join-class dbi))
-                                        :where (make-instance 'sql-relational-exp
-                                                              :operator 'in
-                                                              :sub-expressions (list (sql-expression :attribute foreign-key)
-                                                                                     keys))
-                                        :result-types :auto
-                                        :flatp t)) ))
-
-              (dolist (object objects)
-                (when (or force-p (not (slot-boundp object slotdef-name)))
-                  (let ((res (if results
-                                 (remove-if-not #'(lambda (obj)
-                                                    (equal obj (slot-value
-                                                                object
-                                                                home-key)))
-                                                results
-                                                :key #'(lambda (res)
-                                                         (slot-value res
-                                                                     foreign-key)))
-
-                                 (progn
-                                   (when (gethash :target-slot dbi)
-                                     (fault-join-target-slot class object slotdef))))))
-                    (when res
-                      (setf (slot-value object slotdef-name)
-                            (if (gethash :set dbi) res (car res)))))))))))))
+           (slotdefs (%update-objects-joins-slot-defs class slots)))
+      (loop for slotdef in slotdefs
+            ;; all the joins we will need for all the objects
+            for joins = (unless (join-slot-info-value slotdef :target-slot)
+                          (get-joined-objects objects slotdef))
+            do (loop for object in objects
+                     for these-joins = ;; the joins just for this object (filtered from above)
+                                       ;; or retrieved via fault-join-target-slot
+                        (or (%object-joins-from-list object slotdef joins force-p)
+                            (when (join-slot-info-value slotdef :target-slot)
+                              (fault-join-target-slot class object slotdef)))
+                     ;; when this object has joined-objects copy them in to the correct slot
+                     do (when these-joins
+                          (setf (easy-slot-value object slotdef)
+                                (if (join-slot-info-value slotdef :set)
+                                    these-joins
+                                    (first these-joins))))))))
   (values))
 
 (defun fault-join-slot-raw (class object slot-def)
@@ -967,8 +973,6 @@ maximum of MAX-LEN instances updated in each query."
       (when jq
         (select jc :where jq :flatp t :result-types nil
                 :database (choose-database-for-instance object))))))
-
-
 
 (defun fault-join-slot (class object slot-def)
   (let* ((dbi (view-class-slot-db-info slot-def))
