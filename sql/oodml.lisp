@@ -191,6 +191,7 @@
   (sql-expression :table (view-table o)))
 
 (defmethod attribute-references ((o class-and-slots))
+  "build sql-ident-attributes for a given class-and-slots"
   (loop
     with class = (view-class o)
     for sd in (slot-defs o)
@@ -236,7 +237,8 @@
     rtns))
 
 (defun update-auto-increments-keys (class obj database)
-  ;; handle pulling any autoincrement values into the object
+  " handle pulling any autoincrement values into the object
+   if normalized and we now that all the "
   (let ((pk-slots (keyslots-for-class class))
         (table (view-table class))
         new-pk-value)
@@ -253,10 +255,9 @@
                "This seems kindof wrong, but this is mostly how it was working, so
                   its here to keep the normalized code path working"
                (when (typep in-class 'standard-db-class)
-                 (loop for slot in (keyslots-for-class in-class)
-                       do (do-update slot))
-                 (loop for c in (class-direct-superclasses in-class)
-                       do (chain-primary-keys c)))))
+                 (loop for slot in (ordered-class-slots in-class)
+                       when (key-slot-p slot)
+                       do (do-update slot)))))
       (loop for slot in pk-slots do (do-update slot))
       (let ((direct-class (to-class obj)))
         (when (and new-pk-value (normalizedp direct-class))
@@ -266,7 +267,10 @@
 (defmethod %update-instance-helper
     (class-and-slots obj database
      &aux (avps (attribute-value-pairs class-and-slots obj database)))
-  ;; we dont actually need to update anything on this particular parent class
+  "A function to help us update a given table (based on class-and-slots)
+   with values from an object"
+  ;; we dont actually need to update anything on this particular
+  ;; class / parent class
   (unless avps (return-from %update-instance-helper))
 
   (let* ((view-class (view-class class-and-slots))
@@ -301,6 +305,12 @@
 
 (defmethod update-record-from-slots ((obj standard-db-object) slots
                                      &key (database *default-database*))
+  "For a given list of slots, update all records associated with those slots
+   and classes.
+
+   Generally this will update the single record associated with this object,
+   but for normalized classes might update as many records as there are
+   inheritances "
   (setf slots (listify slots))
   (let* ((classes-and-slots (view-classes-and-slots-by-name obj slots))
          (database (choose-database-for-instance obj database)))
@@ -311,6 +321,10 @@
 
 (defmethod update-record-from-slot
     ((obj standard-db-object) slot &key (database *default-database*))
+  "just call update-records-from-slots which now handles this.
+
+   This function is only here to maintain backwards compatibility in
+   the public api"
   (update-record-from-slots obj slot :database database))
 
 (defun view-classes-and-storable-slots (class)
@@ -340,6 +354,7 @@
 
 (defmethod primary-key-slot-values ((obj standard-db-object)
                                     &key class slots )
+  "Returns the values of all key-slots for a given class"
   (defaulting class (class-of obj)
               slots (keyslots-for-class class))
   (loop for slot in slots
@@ -370,6 +385,10 @@
     (primary-key-slot-values obj)))
 
 (defmethod delete-instance-records ((instance standard-db-object) &key database)
+  "Removes the records associated with a given instance
+   (as determined by key-qualifier-for-instance)
+
+   TODO: Doesnt handle normalized classes at all afaict"
   (let ((database (choose-database-for-instance instance database))
         (vt (sql-expression :table (view-table (class-of instance)))))
     (if database
@@ -430,6 +449,8 @@
 
 (defmethod update-slot-from-record ((instance standard-db-object)
                                     slot &key (database *default-database*))
+  "Pulls the value of a given slot form the database and stores that in the
+   appropriate slot on instance"
   (multiple-value-bind (res slot-def)
       (get-slot-value-from-record instance slot :database database)
     (let ((vd (choose-database-for-instance instance database)))
