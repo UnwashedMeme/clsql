@@ -31,24 +31,24 @@
 (defvar *db-initializing* nil)
 
 (defmethod slot-value-using-class ((class standard-db-class) instance slot-def)
-  (declare (optimize (speed 3)))
+  ;;(declare (optimize (speed 3)))
   (let* ((slot-name (%svuc-slot-name slot-def))
-         (slot-object (%svuc-slot-object slot-def class))
-         (slot-kind (view-class-slot-db-kind slot-object)))
+         (slot-object (%svuc-slot-object slot-def class)))
     (when (and (not *db-deserializing*)
                (not (slot-boundp instance slot-name)))
-      (if (view-database instance) ;; object is from the db
-          (let ((*db-deserializing* t))
-            (cond
-              ((eql slot-kind :join)
+      ;; TODO:
+      ;; BUG:  This seems to be entirely unthreadsafe
+      (let ((*db-deserializing* t))
+        (cond
+          ((join-slot-p slot-def)
+           (if (view-database instance)
                (setf (slot-value instance slot-name)
-                     (fault-join-slot class instance slot-object)))
-              ((not-direct-normalized-slot-p class slot-name)
-               (setf (slot-value instance slot-name)
-                     (fault-join-normalized-slot class instance slot-object)))))
-          ;; new object just set to nil - this breaks boundedness checks...
-          ;; (setf (slot-value instance slot-name) nil)
-          )))
+                     (fault-join-slot class instance slot-object))
+               (setf (slot-value instance slot-name) nil)))
+          ((not-direct-normalized-slot-p class slot-def)
+           (if (view-database instance)
+               (update-fault-join-normalized-slot class instance slot-def)
+               (setf (slot-value instance slot-name) nil)))))))
   (call-next-method))
 
 (defmethod (setf slot-value-using-class) (new-value (class standard-db-class)
@@ -68,6 +68,8 @@
 (defmethod initialize-instance ((object standard-db-object)
                                 &rest all-keys &key &allow-other-keys)
   (declare (ignore all-keys))
+  ;; TODO:
+  ;; BUG:  This seems to be entirely unthreadsafe
   (let ((*db-initializing* t))
     (call-next-method)
     (when (and *db-auto-sync*
