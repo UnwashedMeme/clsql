@@ -66,14 +66,25 @@
   #+mop-slot-order-reversed (reverse (class-direct-slots class))
   #-mop-slot-order-reversed (class-direct-slots class))
 
-(defun find-class-slot-by-name (class slot-name &optional direct?)
+(defun find-slot-by-name (class slot-name &optional direct? recurse?)
   "Looks up a direct-slot-definition by name"
-  (setf class (to-class class))
-  (find (to-slot-name slot-name)
-        (if direct?
-            (ordered-class-direct-slots class)
-            (ordered-class-slots class))
-        :key #'slot-definition-name))
+  (setf class (to-class class)
+        slot-name (to-slot-name slot-name))
+  (labels ((find-it (class)
+             (let* ((slots (if direct?
+                               (ordered-class-direct-slots class)
+                               (ordered-class-slots class)))
+                    (it (find slot-name
+                              slots
+                              :key #'slot-definition-name)))
+               (if it
+                   it
+                   (when recurse?
+                     (loop for sup in (class-direct-superclasses class)
+                           for rtn = (find-it sup)
+                           until rtn
+                           finally (return rtn)))))))
+    (find-it class)))
 
 ;; Lispworks has symbol for slot rather than the slot instance
 (defun %svuc-slot-name (slot)

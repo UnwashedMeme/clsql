@@ -133,7 +133,7 @@ in DATABASE which defaults to *DEFAULT-DATABASE*."
 
 (defmethod database-generate-column-definition (class slotdef database)
   (declare (ignore class))
-  (when (member (view-class-slot-db-kind slotdef) '(:base :key))
+  (when (key-or-base-slot-p slotdef)
     (let ((cdef
            (list (sql-expression :attribute (database-identifier slotdef database))
                  (specified-type slotdef))))

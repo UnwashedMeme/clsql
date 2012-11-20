@@ -311,10 +311,7 @@
     ((obj standard-db-object) slot &key (database *default-database*))
   (update-record-from-slots obj slot :database database))
 
-(defun %slot-storedp (slot-def)
-  "Whether or not a slot should be stored in the database based on its db-kind
-   and whether it is bound"
-  (member (view-class-slot-db-kind slot-def) '(:base :key)))
+
 
 (defmethod view-classes-and-storable-slots-for-instance ((obj standard-db-object))
   "Get a list of all the tables we need to update and the slots on them
@@ -328,7 +325,7 @@
          rtns)
     (labels ((storable-slots (class)
                (loop for sd in (slots-for-possibly-normalized-class class)
-                     when (%slot-storedp sd)
+                     when (key-or-base-slot-p sd)
                      collect sd))
              (get-classes-and-slots (class &aux (normalizedp (normalizedp class)))
                (let ((slots (storable-slots class)))

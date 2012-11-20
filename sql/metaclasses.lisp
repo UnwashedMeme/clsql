@@ -582,17 +582,31 @@ implementations."
       (ordered-class-direct-slots class)
       (ordered-class-slots class)))
 
+(defun key-slot-p (slot-def)
+  "takes a slot def and returns whether or not it is a key"
+  (eql :key (view-class-slot-db-kind slot-def)))
+
+(defun join-slot-p (slot-def)
+  "takes a slot def and returns whether or not it is a key"
+  (eql :join (view-class-slot-db-kind slot-def)))
+
+(defun key-or-base-slot-p (slot-def)
+  "takes a slot def and returns whether or not it is a key"
+  (member (view-class-slot-db-kind slot-def) '(:key :base)))
+
 (defun direct-normalized-slot-p (class slot-name)
   "Is this a normalized class and if so is the slot one of our direct slots?"
   (setf slot-name (to-slot-name slot-name))
-  (and (normalizedp class)
+  (and (typep class 'standard-db-class)
+       (normalizedp class)
        (member slot-name (ordered-class-direct-slots class)
                :key #'slot-definition-name)))
 
 (defun not-direct-normalized-slot-p (class slot-name)
   "Is this a normalized class and if so is the slot not one of our direct slots?"
   (setf slot-name (to-slot-name slot-name))
-  (and (normalizedp class)
+  (and (typep class 'standard-db-class)
+       (normalizedp class)
        (not (member slot-name (ordered-class-direct-slots class)
                     :key #'slot-definition-name))))
 
