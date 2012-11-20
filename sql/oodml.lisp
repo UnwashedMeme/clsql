@@ -52,59 +52,46 @@
 ;;
 
 (defun generate-selection-list (vclass)
-  (let* ((sels nil)
-         (this-class vclass)
-         (slots (if (normalizedp vclass)
-                    (labels ((getdslots ()
-                               (let ((sl (ordered-class-direct-slots this-class)))
-                                 (cond (sl)
-                                       (t
-                                        (setf this-class
-                                              (car (class-direct-superclasses this-class)))
-                                        (getdslots))))))
-                      (getdslots))
-                    (ordered-class-slots this-class))))
-    (dolist (slotdef slots)
-      (let ((res (generate-attribute-reference this-class slotdef)))
-        (when res
-          (push (cons slotdef res) sels))))
-    (if sels
-        sels
+  "Generates a list of (slot-def . sql-ident-attribute) used to select data"
+  (setf vclass (to-class vclass))
+  (let* ((class-and-slots
+           ;; find the first class with slots for us to select (this should be)
+           ;; the first of its classes / parent-classes with slots
+           (first (reverse (view-classes-and-storable-slots vclass))))
+         (class (view-class class-and-slots))
+         (sels
+           (loop for slot in (slot-defs class-and-slots)
+                 for res = (generate-attribute-reference class slot)
+                 when res
+                 collect (cons slot res))))
+    (or sels
         (error "No slots of type :base in view-class ~A" (class-name vclass)))))
 
-
-
-(defun generate-retrieval-joins-list (vclass retrieval-method)
+(defun generate-retrieval-joins-list (class retrieval-method)
   "Returns list of immediate join slots for a class."
-  (let ((join-slotdefs nil))
-    (dolist (slotdef (ordered-class-slots vclass) join-slotdefs)
-      (when (and (eq :join (view-class-slot-db-kind slotdef))
-                 (eq retrieval-method (gethash :retrieval (view-class-slot-db-info slotdef))))
-        (push slotdef join-slotdefs)))))
+  (setf class (to-class class))
+  (loop for slot in (ordered-class-slots class)
+        when (eql (join-slot-retrieval-method slot) retrieval-method)
+        collect slot))
 
 (defun generate-immediate-joins-selection-list (vclass)
   "Returns list of immediate join slots for a class."
-  (let (sels)
-    (dolist (joined-slot (generate-retrieval-joins-list vclass :immediate) sels)
-      (let* ((join-class-name (gethash :join-class (view-class-slot-db-info joined-slot)))
-             (join-class (when join-class-name (find-class join-class-name))))
-        (dolist (slotdef (ordered-class-slots join-class))
-          (let ((res (generate-attribute-reference join-class slotdef)))
-            (when res
-              (push (cons slotdef res) sels))))))
-    sels))
+  (loop for join-slot in (generate-retrieval-joins-list vclass :immediate)
+        for join-class = (join-slot-class join-slot)
+        appending
+           (loop for slot in (ordered-class-slots join-class)
+                 for ref = (generate-attribute-reference join-class slot)
+                 when ref
+                 collect (cons slot ref))))
 
 (defmethod choose-database-for-instance ((obj standard-db-object) &optional database)
   "Determine which database connection to use for a standard-db-object.
         Errs if none is available."
-  (or (find-if #'(lambda (db)
-                   (and db (is-database-open db)))
-               (list (view-database obj)
-                     database
-                     *default-database*))
+  (or (loop for db in (list (view-database obj)
+                            database
+                            *default-database*)
+            thereis db)
       (signal-no-database-error nil)))
-
-
 
 (defmethod update-slot-with-null ((object standard-db-object) slotdef)
   "sets a slot to the void value of the slot-def (usually nil)"
