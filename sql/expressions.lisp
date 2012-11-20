@@ -1182,3 +1182,35 @@ uninclusive, and the args from that keyword to the end."
       (%sql-expression (flatten-id name))
       )))
 
+(defun %clsql-subclauses (clauses)
+  (loop for c in clauses
+        when c
+        collect (typecase c
+                  (string (clsql-sys:sql-expression :string c))
+                  (T c))))
+
+(defun clsql-ands (clauses)
+  "returns a clsql-and for all non-nil clauses, the child if there is only one
+   and an and if there are many"
+  (let ((ex (%clsql-subclauses clauses)))
+    (when ex
+      (case (length ex)
+        (1 (first ex))
+        (t (apply #'clsql-sys:sql-and ex))))))
+
+(defun clsql-and (&rest clauses)
+  "returns a CLSQL:SQL-AND for all non-nil clauses, no nil if there are no non-nil clauses"
+  (clsql-ands clauses))
+
+(defun clsql-ors (clauses)
+  "returns a CLSQL:SQL-AND for all non-nil clauses, no nil if there are no non-nil clauses"
+  (let ((ex (%clsql-subclauses clauses)))
+    (when ex
+      (case (length ex)
+        (1 (first ex))
+        (t (apply #'clsql-sys:sql-or ex))))))
+
+(defun clsql-or (&rest clauses)
+  "returns a CLSQL:SQL-AND for all non-nil clauses, no nil if there are no non-nil clauses"
+  (clsql-ors clauses))
+

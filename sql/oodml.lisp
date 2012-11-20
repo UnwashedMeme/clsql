@@ -12,39 +12,36 @@
 
 (in-package #:clsql-sys)
 
+(defun normalized-key-value (obj)
+  "Normalized classes share a single key for all their key slots"
+  (when (normalizedp (class-of obj))
+    (let ((top-key (first (keyslots-for-class (class-of obj)))))
+      (easy-slot-value obj top-key))))
 
 (defun key-qualifier-for-instance (obj &key (database *default-database*) this-class)
   (let* ((obj-class (or this-class (class-of obj)))
-         (tb (view-table obj-class)))
-    (flet ((qfk (k)
-             (sql-operation '==
-                            (sql-expression :attribute
-                                            (database-identifier k database)
-                                            :table tb)
-                            (db-value-from-slot
-                             k
-                             (slot-value obj (slot-definition-name k))
-                             database))))
-      (let* ((keys (keyslots-for-class obj-class))
-             (keyxprs (mapcar #'qfk (reverse keys))))
-        (cond
-          ((= (length keyxprs) 0) nil)
-          ((= (length keyxprs) 1) (car keyxprs))
-          ((> (length keyxprs) 1) (apply #'sql-operation 'and keyxprs)))))))
+         (keys (keyslots-for-class obj-class))
+         (normal-db-value (normalized-key-value obj)))
+    (when keys
+      (labels ((db-value (k)
+                 (or normal-db-value
+                     (db-value-from-slot
+                      k
+                      (easy-slot-value obj k)
+                      database)))
+               (key-equal-exp (k)
+                 (sql-operation '== (generate-attribute-reference obj-class k database)
+                                (db-value k))))
+        (clsql-ands (mapcar #'key-equal-exp keys))))))
 
-;;
-;; Function used by 'generate-selection-list'
-;;
+(defun generate-attribute-reference (vclass slotdef &optional (database *default-database*))
+  "Turns key class and slot-def into a sql-expression representing the
+   table and column it comes from
 
-(defun generate-attribute-reference (vclass slotdef)
-  (cond
-    ((eq (view-class-slot-db-kind slotdef) :base)
-     (sql-expression :attribute (database-identifier slotdef nil)
-                     :table (database-identifier vclass nil)))
-    ((eq (view-class-slot-db-kind slotdef) :key)
-     (sql-expression :attribute (database-identifier slotdef nil)
-                     :table (database-identifier vclass nil)))
-    (t nil)))
+   used by things like generate-selection-list, update-slot-from-record"
+  (when (key-or-base-slot-p slotdef)
+    (sql-expression :attribute (database-identifier slotdef database)
+                    :table (database-identifier vclass database))))
 
 ;;
 ;; Function used by 'find-all'
