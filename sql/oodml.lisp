@@ -74,6 +74,9 @@
         when (eql (join-slot-retrieval-method slot) retrieval-method)
         collect slot))
 
+(defun immediate-join-slots (class)
+  (generate-retrieval-joins-list class :immediate))
+
 (defun generate-immediate-joins-selection-list (vclass)
   "Returns list of immediate join slots for a class."
   (loop for join-slot in (generate-retrieval-joins-list vclass :immediate)
