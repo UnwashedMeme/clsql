@@ -1102,6 +1102,51 @@
   "Turns an object representing a table into the :from part of the sql expression that will be executed "
   (sql-expression :table (view-table table)))
 
+(defun select-reference-equal (r1 r2)
+  "determines if two sql select references are equal
+   using database identifier equal"
+  (flet ((id-of (r)
+           (etypecase r
+             (cons (cdr r))
+             (sql-ident-attribute r))))
+    (database-identifier-equal (id-of r1) (id-of r2))))
+
+(defun join-slot-qualifier (class join-slot)
+  "Creates a sql-expression expressing the join between the home-key on the table
+   and its respective key on the joined-to-table"
+  (sql-operation
+   '==
+   (sql-expression
+    :attribute (join-slot-info-value join-slot :foreign-key)
+    :table (view-table (join-slot-class join-slot)))
+   (sql-expression
+    :attribute (join-slot-info-value join-slot :home-key)
+    :table (view-table class))))
+
+(defun all-immediate-join-classes-for (classes)
+  "returns a list of all join-classes needed for a list of classes"
+  (loop for class in (listify classes)
+        appending (loop for slot in (immediate-join-slots class)
+                        collect (join-slot-class slot))))
+
+(defun %tables-for-query (classes from where inner-joins)
+  "Given lists of classes froms wheres and inner-join compile a list
+   of tables that should appear in the FROM section of the query.
+
+   This includes any immediate join classes from each of the classes"
+  (let ((inner-join-tables (collect-table-refs (listify inner-joins))))
+    (loop for tbl in (append
+                      (mapcar #'select-table-sql-expr classes)
+                      (mapcar #'select-table-sql-expr
+                              (all-immediate-join-classes-for classes))
+                      (collect-table-refs (listify where))
+                      (collect-table-refs (listify from)))
+          when (and tbl
+                    (not (find tbl rtn :test #'database-identifier-equal))
+                    ;; TODO: inner-join is currently hacky as can be
+                    (not (find tbl inner-join-tables :test #'database-identifier-equal)))
+          collect tbl into rtn
+          finally (return rtn))))
 
 (defun find-all (view-classes
                  &rest args
@@ -1112,107 +1157,72 @@
                  instances parameters)
   "Called by SELECT to generate object query results when the
   View Classes VIEW-CLASSES are passed as arguments to SELECT."
-  (declare (ignore all set-operation group-by having offset limit inner-join on parameters)
+  (declare (ignore all set-operation group-by having offset limit on parameters)
            (dynamic-extent args))
-  (flet ((ref-equal (ref1 ref2)
-           (string= (sql-output ref1 database)
-                    (sql-output ref2 database))))
-    (declare (dynamic-extent (function ref-equal)))
-    (let ((args (filter-plist args :from :where :flatp :additional-fields :result-types :instances)))
-      (let* ((*db-deserializing* t)
-             (sclasses (mapcar #'find-class view-classes))
-             (immediate-join-slots
-               (mapcar #'(lambda (c) (generate-retrieval-joins-list c :immediate)) sclasses))
-             (immediate-join-classes
-               (mapcar #'(lambda (jcs)
-                           (mapcar #'(lambda (slotdef)
-                                       (find-class (gethash :join-class (view-class-slot-db-info slotdef))))
-                                   jcs))
-                       immediate-join-slots))
-             (immediate-join-sels (mapcar #'generate-immediate-joins-selection-list sclasses))
-             (sels (mapcar #'generate-selection-list sclasses))
-             (fullsels (apply #'append (mapcar #'append sels immediate-join-sels)))
-             (sel-tables (collect-table-refs where))
-             (tables (remove-if #'null
-                                (remove-duplicates
-                                 (append (mapcar #'select-table-sql-expr sclasses)
-                                         (mapcan #'(lambda (jc-list)
-                                                     (mapcar
-                                                      #'(lambda (jc) (when jc (select-table-sql-expr jc)))
-                                                      jc-list))
-                                                 immediate-join-classes)
-                                         sel-tables)
-                                 :test #'database-identifier-equal)))
-             (order-by-slots (mapcar #'(lambda (ob) (if (atom ob) ob (car ob)))
-                                     (listify order-by)))
-             (join-where nil))
-
-        ;;(format t "sclasses: ~W~%ijc: ~W~%tables: ~W~%" sclasses immediate-join-classes tables)
-
-        (dolist (ob order-by-slots)
-          (when (and ob (not (member ob (mapcar #'cdr fullsels)
-                                     :test #'ref-equal)))
-            (setq fullsels
-                  (append fullsels (mapcar #'(lambda (att) (cons nil att))
-                                           order-by-slots)))))
-        (dolist (ob (listify distinct))
-          (when (and (typep ob 'sql-ident)
-                     (not (member ob (mapcar #'cdr fullsels)
-                                  :test #'ref-equal)))
-            (setq fullsels
-                  (append fullsels (mapcar #'(lambda (att) (cons nil att))
-                                           (listify ob))))))
-        (mapcar #'(lambda (vclass jclasses jslots)
-                    (when jclasses
-                      (mapcar
-                       #'(lambda (jclass jslot)
-                           (let ((dbi (view-class-slot-db-info jslot)))
-                             (setq join-where
-                                   (append
-                                    (list (sql-operation '==
-                                                         (sql-expression
-                                                          :attribute (gethash :foreign-key dbi)
-                                                          :table (view-table jclass))
-                                                         (sql-expression
-                                                          :attribute (gethash :home-key dbi)
-                                                          :table (view-table vclass))))
-                                    (when join-where (listify join-where))))))
-                       jclasses jslots)))
-                sclasses immediate-join-classes immediate-join-slots)
-        ;; Reported buggy on clsql-devel
-        ;; (when where (setq where (listify where)))
-        (cond
-          ((and where join-where)
-           (setq where (list (apply #'sql-and where join-where))))
-          ((and (null where) (> (length join-where) 1))
-           (setq where (list (apply #'sql-and join-where)))))
-
-        (let* ((rows (apply #'select
-                            (append (mapcar #'cdr fullsels)
-                                    (cons :from
-                                          (list (append (when from (listify from))
-                                                        (listify tables))))
-                                    (list :result-types result-types)
-                                    (when where
-                                      (list :where where))
-                                    args)))
-               (instances-to-add (- (length rows) (length instances)))
-               (perhaps-extended-instances
-                 (if (plusp instances-to-add)
-                     (append instances (do ((i 0 (1+ i))
-                                            (res nil))
-                                           ((= i instances-to-add) res)
-                                         (push (make-list (length sclasses) :initial-element nil) res)))
-                     instances))
-               (objects (mapcar
-                         #'(lambda (row instance)
-                             (build-objects row sclasses immediate-join-classes sels
-                                            immediate-join-sels database refresh flatp
-                                            (if (and flatp (atom instance))
-                                                (list instance)
-                                                instance)))
-                         rows perhaps-extended-instances)))
-          objects)))))
+  (let* ((args (filter-plist
+                args :from :where :flatp :additional-fields :result-types :instances))
+         (*db-deserializing* t)
+         (sclasses (mapcar #'to-class view-classes))
+         (immediate-join-classes (all-immediate-join-classes-for sclasses))
+         (immediate-join-sels
+           (loop for class in sclasses
+                 appending (generate-immediate-joins-selection-list class)))
+         (sels (loop for class in sclasses
+                     appending (generate-selection-list class)))
+         (full-select-list
+           (let ((order-by-slots
+                   (loop for i in (listify order-by)
+                         for o = (if (listp i)
+                                     (first i)
+                                     i)
+                         when o
+                         collect o))
+                 (distinct (loop for i in (listify distinct)
+                                 when (typep i 'sql-ident)
+                                 collect i)))
+             (remove-duplicates
+              (append (mapcar #'cdr sels)
+                      (mapcar #'cdr immediate-join-sels)
+                      order-by-slots
+                      distinct)
+              :test #'select-reference=)))
+         (tables (%tables-for-query sclasses from where inner-join))
+         (join-where
+           (loop for class in sclasses
+                 appending (loop for slot in (immediate-join-slots class)
+                                 collect (join-slot-qualifier class slot))))
+         (where (clsql-ands (append (listify where) (listify join-where))))
+         #|
+          (_ (format t "~&sclasses: ~W~%ijc: ~W~%tables: ~W~%"
+                    sclasses immediate-join-classes tables))
+         |#
+         (rows (apply #'select
+                      (append full-select-list
+                              (list :from tables
+                                    :result-types result-types
+                                    :where where)
+                              args)))
+         ;; TODO: this doesnt seem right
+         (instances-to-add (- (length rows) (length instances)))
+         (perhaps-extended-instances
+           (if (plusp instances-to-add)
+               (append instances (do ((i 0 (1+ i))
+                                      (res nil))
+                                     ((= i instances-to-add) res)
+                                   (push (make-list (length sclasses) :initial-element nil) res)))
+               instances))
+         (return-objects
+           (mapcar
+            #'(lambda (row instance)
+                (build-objects row sclasses immediate-join-classes sels
+                               immediate-join-sels database refresh flatp
+                               (if (and flatp (atom instance))
+                                   (list instance)
+                                   instance)))
+            rows perhaps-extended-instances)))
+    
+    return-objects
+    ))
 
 (defmethod instance-refreshed ((instance standard-db-object)))
 
