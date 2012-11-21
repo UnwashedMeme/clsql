@@ -996,44 +996,40 @@
             (normalized-key-value object))
       (update-slot-from-record object slot-def)))
 
+(defun all-home-keys-have-values-p (object slot-def)
+  "Do all of the home-keys have values ?"
+  (let ((home-keys (join-slot-info-value slot-def :home-key)))
+    (loop for key in (listify home-keys)
+          always (easy-slot-value object key))))
+
 (defun join-qualifier (class object slot-def)
+  "Builds the join where clause based on the keys of the join slot and values
+   of the object"
   (declare (ignore class))
-  (let* ((dbi (view-class-slot-db-info slot-def))
-         (jc (find-class (gethash :join-class dbi)))
+  (let* ((jc (join-slot-class slot-def))
          ;;(ts (gethash :target-slot dbi))
          ;;(tsdef (if ts (slotdef-for-slot-with-class ts jc)))
-         (foreign-keys (gethash :foreign-key dbi))
-         (home-keys (gethash :home-key dbi)))
-    (when (every #'(lambda (slt)
-                     (and (slot-boundp object slt)
-                          (not (null (slot-value object slt)))))
-                 (if (listp home-keys) home-keys (list home-keys)))
-      (let ((jc
-             (mapcar #'(lambda (hk fk)
-                         (let ((fksd (slotdef-for-slot-with-class fk jc)))
-                           (sql-operation '==
-                                          (typecase fk
-                                            (symbol
-                                             (sql-expression
-                                              :attribute
-                                              (database-identifier fksd nil)
-                                              :table (database-identifier jc nil)))
-                                            (t fk))
-                                          (typecase hk
-                                            (symbol
-                                             (slot-value object hk))
-                                            (t
-                                             hk)))))
-                     (if (listp home-keys)
-                         home-keys
-                         (list home-keys))
-                     (if (listp foreign-keys)
-                         foreign-keys
-                         (list foreign-keys)))))
-        (when jc
-          (if (> (length jc) 1)
-              (apply #'sql-and jc)
-              jc))))))
+         (foreign-keys (listify (join-slot-info-value slot-def :foreign-key)))
+         (home-keys (listify (join-slot-info-value slot-def :home-key))))
+    (when (all-home-keys-have-values-p object slot-def)
+      (list ;; TODO: remove this list and make it work anyway
+       (clsql-ands
+        (loop for hk in home-keys
+              for fk in foreign-keys
+              for fksd = (slotdef-for-slot-with-class fk jc)
+              for fk-sql = (typecase fk
+                             (symbol
+                              (sql-expression
+                               :attribute (database-identifier fksd nil)
+                               :table (database-identifier jc nil)))
+                             (t fk))
+              for hk-val = (typecase hk
+                             ((or symbol
+                                  view-class-effective-slot-definition
+                                  view-class-direct-slot-definition)
+                              (easy-slot-value object hk))
+                             (t hk))
+              collect (sql-operation '== fk-sql hk-val)))))))
 
 ;; FIXME: add retrieval immediate for efficiency
 ;; For example, for (select 'employee-address) in test suite =>

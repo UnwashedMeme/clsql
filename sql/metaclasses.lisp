@@ -542,9 +542,7 @@ implementations."
 (defun slotdef-for-slot-with-class (slot class)
   (typecase slot
     (standard-slot-definition slot)
-    (symbol
-     (find-if #'(lambda (d) (eql slot (slot-definition-name d)))
-              (class-slots class)))))
+    (symbol (find-slot-by-name class slot))))
 
 #+ignore
 (eval-when (:compile-toplevel :load-toplevel :execute)
