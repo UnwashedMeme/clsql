@@ -77,16 +77,6 @@
 (defun immediate-join-slots (class)
   (generate-retrieval-joins-list class :immediate))
 
-(defun generate-immediate-joins-selection-list (vclass)
-  "Returns list of immediate join slots for a class."
-  (loop for join-slot in (generate-retrieval-joins-list vclass :immediate)
-        for join-class = (join-slot-class join-slot)
-        appending
-           (loop for slot in (ordered-class-slots join-class)
-                 for ref = (generate-attribute-reference join-class slot)
-                 when ref
-                 collect (cons slot ref))))
-
 (defmethod choose-database-for-instance ((obj standard-db-object) &optional database)
   "Determine which database connection to use for a standard-db-object.
         Errs if none is available."
@@ -1034,70 +1024,6 @@
                              (t hk))
               collect (sql-operation '== fk-sql hk-val)))))))
 
-;; FIXME: add retrieval immediate for efficiency
-;; For example, for (select 'employee-address) in test suite =>
-;; select addr.*,ea_join.* FROM addr,ea_join WHERE ea_join.aaddressid=addr.addressid\g
-
-(defun build-objects (vals sclasses immediate-join-classes sels immediate-joins database refresh flatp instances)
-  "Used by find-all to build objects."
-  (labels ((build-object (vals vclass jclasses selects immediate-selects instance)
-             (let* ((db-vals (butlast vals (- (list-length vals)
-                                              (list-length selects))))
-                    (obj (if instance instance (make-instance (class-name vclass) :view-database database)))
-                    (join-vals (subseq vals (list-length selects)))
-                    (joins (mapcar #'(lambda (c) (when c (make-instance c :view-database database)))
-                                   jclasses)))
-
-               ;;(format t "joins: ~S~%db-vals: ~S~%join-values: ~S~%selects: ~S~%immediate-selects: ~S~%"
-               ;;joins db-vals join-vals selects immediate-selects)
-
-               ;; use refresh keyword here
-               (setf obj (get-slot-values-from-view obj (mapcar #'car selects) db-vals))
-               (mapc #'(lambda (jo)
-                         ;; find all immediate-select slots and join-vals for this object
-                         (let* ((jo-class (class-of jo))
-                                (slots (slots-for-possibly-normalized-class jo-class))
-                                (pos-list (remove-if #'null
-                                                     (mapcar
-                                                      #'(lambda (s)
-                                                          (position s immediate-selects
-                                                                    :key #'car
-                                                                    :test #'eq))
-                                                      slots))))
-                           (get-slot-values-from-view jo
-                                                      (mapcar #'car
-                                                              (mapcar #'(lambda (pos)
-                                                                          (nth pos immediate-selects))
-                                                                      pos-list))
-                                                      (mapcar #'(lambda (pos) (nth pos join-vals))
-                                                              pos-list))))
-                     joins)
-               (mapc
-                #'(lambda (jc)
-                    (let* ((vslots
-                            (class-slots vclass))
-                           (slot (find (class-name (class-of jc)) vslots
-                                       :key #'(lambda (slot)
-                                                (when (and (eq :join (view-class-slot-db-kind slot))
-                                                           (eq (slot-definition-name slot)
-                                                               (gethash :join-class (view-class-slot-db-info slot))))
-                                                  (slot-definition-name slot))))))
-                      (when slot
-                        (setf (slot-value obj (slot-definition-name slot)) jc))))
-                joins)
-               (when refresh (instance-refreshed obj))
-               obj)))
-    (let* ((objects
-            (mapcar #'(lambda (sclass jclass sel immediate-join instance)
-                        (prog1
-                            (build-object vals sclass jclass sel immediate-join instance)
-                          (setf vals (nthcdr (+ (list-length sel) (list-length immediate-join))
-                                             vals))))
-                    sclasses immediate-join-classes sels immediate-joins instances)))
-      (if (and flatp (= (length sclasses) 1))
-          (car objects)
-          objects))))
-
 (defmethod select-table-sql-expr ((table T))
   "Turns an object representing a table into the :from part of the sql expression that will be executed "
   (sql-expression :table (view-table table)))
@@ -1148,6 +1074,57 @@
           collect tbl into rtn
           finally (return rtn))))
 
+(defun full-select-list ( classes )
+  "Returns a list of sql-ref of things to select for the given classes
+
+   THIS NEEDS TO MATCH THE ORDER OF build-objects
+
+   TODO: this used to include order-by and distinct as more things to select.
+    distinct seems to always be used in a boolean context, so it doesnt seem
+    like appending it to the select makes any sense
+
+    We also used to remove duplicates, but that seems like it would make
+    filling/building objects much more difficult so skipping for now...
+  "
+  (setf classes (mapcar #'to-class (listify classes)))
+  (mapcar
+   #'cdr
+   (loop for class in classes
+         appending (generate-selection-list class)
+         appending
+            (loop for join-slot in (immediate-join-slots class)
+                  for join-class = (join-slot-class-name join-slot)
+                  appending (generate-selection-list join-class)))))
+
+(defun build-objects (classes row database &optional existing-instances)
+  "Used by find-all to build objects.
+
+   THIS NEEDS TO MATCH THE ORDER OF FULL-SELECT-LIST
+
+   TODO: this caching scheme seems bad for a number of reasons
+    * order is not guaranteed so references being held by one object
+      might change to represent a different database row (seems HIGHLY
+      suspect)
+    * also join objects are overwritten rather than refreshed
+   "
+  (setf existing-instances (listify existing-instances))
+  (loop for class in classes
+        for existing = (pop existing-instances)
+        for object = (or existing
+                         (make-instance class :view-database database))
+        do (loop for (slot . _) in (generate-selection-list class)
+                 do (update-slot-from-db-value object slot (pop row)))
+        do (loop for join-slot in (immediate-join-slots class)
+                 for join-class = (join-slot-class-name join-slot)
+                 for join-object =
+                     (setf
+                      (easy-slot-value object join-slot)
+                      (make-instance join-class))
+                 do (loop for (slot . _) in (generate-selection-list join-class)
+                          do (update-slot-from-db-value join-object slot (pop row))))
+        do (when existing (instance-refreshed object))
+        collect object))
+
 (defun find-all (view-classes
                  &rest args
                  &key all set-operation distinct from where group-by having
@@ -1156,41 +1133,26 @@
                  (database *default-database*)
                  instances parameters)
   "Called by SELECT to generate object query results when the
-  View Classes VIEW-CLASSES are passed as arguments to SELECT."
+  View Classes VIEW-CLASSES are passed as arguments to SELECT.
+
+   TODO: the caching scheme of passing in instances and overwriting their
+         values seems bad for a number of reasons
+    * order is not guaranteed so references being held by one object
+      might change to represent a different database row (seems HIGHLY
+      suspect)
+  "
   (declare (ignore all set-operation group-by having offset limit on parameters)
            (dynamic-extent args))
   (let* ((args (filter-plist
                 args :from :where :flatp :additional-fields :result-types :instances))
          (*db-deserializing* t)
          (sclasses (mapcar #'to-class view-classes))
-         (immediate-join-classes (all-immediate-join-classes-for sclasses))
-         (immediate-join-sels
-           (loop for class in sclasses
-                 appending (generate-immediate-joins-selection-list class)))
-         (sels (loop for class in sclasses
-                     appending (generate-selection-list class)))
-         (full-select-list
-           (let ((order-by-slots
-                   (loop for i in (listify order-by)
-                         for o = (if (listp i)
-                                     (first i)
-                                     i)
-                         when o
-                         collect o))
-                 (distinct (loop for i in (listify distinct)
-                                 when (typep i 'sql-ident)
-                                 collect i)))
-             (remove-duplicates
-              (append (mapcar #'cdr sels)
-                      (mapcar #'cdr immediate-join-sels)
-                      order-by-slots
-                      distinct)
-              :test #'select-reference=)))
          (tables (%tables-for-query sclasses from where inner-join))
          (join-where
            (loop for class in sclasses
                  appending (loop for slot in (immediate-join-slots class)
                                  collect (join-slot-qualifier class slot))))
+         (full-select-list (full-select-list sclasses))
          (where (clsql-ands (append (listify where) (listify join-where))))
          #|
           (_ (format t "~&sclasses: ~W~%ijc: ~W~%tables: ~W~%"
@@ -1202,27 +1164,15 @@
                                     :result-types result-types
                                     :where where)
                               args)))
-         ;; TODO: this doesnt seem right
-         (instances-to-add (- (length rows) (length instances)))
-         (perhaps-extended-instances
-           (if (plusp instances-to-add)
-               (append instances (do ((i 0 (1+ i))
-                                      (res nil))
-                                     ((= i instances-to-add) res)
-                                   (push (make-list (length sclasses) :initial-element nil) res)))
-               instances))
          (return-objects
-           (mapcar
-            #'(lambda (row instance)
-                (build-objects row sclasses immediate-join-classes sels
-                               immediate-join-sels database refresh flatp
-                               (if (and flatp (atom instance))
-                                   (list instance)
-                                   instance)))
-            rows perhaps-extended-instances)))
-    
-    return-objects
-    ))
+           (loop for row in rows
+                 for old-objs = (pop instances)
+                 for objs = (build-objects sclasses row database
+                                           (when refresh old-objs))
+                 collecting (if flatp
+                                (delist-if-single objs)
+                                objs))))
+    return-objects))
 
 (defmethod instance-refreshed ((instance standard-db-object)))
 

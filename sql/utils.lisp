@@ -455,6 +455,12 @@ removed. keys are searched with #'MEMBER"
     (symbol (find-class it))
     (standard-object (class-of it))))
 
+(defun to-class-name (o)
+  (etypecase o
+    (symbol o)
+    (standard-class (class-name o))
+    (standard-object (class-name (class-of o)))))
+
 (defun easy-slot-value (obj slot)
   "like slot-value except it accepts slot-names or defs
    and returns nil when the slot is unbound"
@@ -466,3 +472,8 @@ removed. keys are searched with #'MEMBER"
   "like slot-value except it accepts slot-names or defs"
   (setf (slot-value obj (to-slot-name slot)) new))
 
+(defun delist-if-single (x)
+  "if this is a single item in a list return it"
+  (if (and (listp x) (= 1 (length x)))
+      (first x)
+      x))

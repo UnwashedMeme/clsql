@@ -18,7 +18,6 @@
 (defparameter subloc2 nil)
 
 
-
 ;; classes for testing the normalizedp stuff
 (def-view-class node ()
   ((node-id :accessor node-id :initarg :node-id
