@@ -1106,6 +1106,11 @@
       might change to represent a different database row (seems HIGHLY
       suspect)
     * also join objects are overwritten rather than refreshed
+
+   TODO: the way we handle immediate joins seems only valid if it is a single
+      object.  I suspect that making a :set :immediate join column would result
+      in an invalid number of objects returned from the database, because there
+      would be multiple rows per object, but we would return an object per row
    "
   (setf existing-instances (listify existing-instances))
   (loop for class in classes
@@ -1140,8 +1145,14 @@
     * order is not guaranteed so references being held by one object
       might change to represent a different database row (seems HIGHLY
       suspect)
+
+   TODO: the way we handle immediate joins seems only valid if it is a single
+      object.  I suspect that making a :set :immediate join column would result
+      in an invalid number of objects returned from the database, because there
+      would be multiple objects returned from the database
   "
-  (declare (ignore all set-operation group-by having offset limit on parameters)
+  (declare (ignore all set-operation group-by having offset limit on parameters
+                   distinct order-by)
            (dynamic-extent args))
   (let* ((args (filter-plist
                 args :from :where :flatp :additional-fields :result-types :instances))
