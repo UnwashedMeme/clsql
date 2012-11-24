@@ -261,9 +261,6 @@
              'sql-ident-table
              :name (database-identifier qual nil t))))))
 
-(defmethod collect-table-refs ((sql sql-ident-table))
-  (list sql))
-
 (defmethod make-load-form ((sql sql-ident-attribute) &optional environment)
   (declare (ignore environment))
   (with-slots (qualifier type name)
@@ -292,6 +289,9 @@
   (with-slots (alias name)
     sql
     `(make-instance 'sql-ident-table :name ',name :table-alias ',alias)))
+
+(defmethod collect-table-refs ((sql sql-ident-table))
+  (list sql))
 
 (defmethod output-sql ((expr sql-ident-table) database)
   (with-slots (name alias) expr
