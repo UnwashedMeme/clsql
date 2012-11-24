@@ -42,30 +42,10 @@
   "Turns key class and slot-def into a sql-expression representing the
    table and column it comes from
 
-   used by things like generate-selection-list, update-slot-from-record"
+   used by things like make-select-list, update-slot-from-record"
   (when (key-or-base-slot-p slotdef)
     (sql-expression :attribute (database-identifier slotdef database)
                     :table (database-identifier vclass database))))
-
-;;
-;; Function used by 'find-all'
-;;
-
-(defun generate-selection-list (vclass)
-  "Generates a list of (slot-def . sql-ident-attribute) used to select data"
-  (setf vclass (to-class vclass))
-  (let* ((class-and-slots
-           ;; find the first class with slots for us to select (this should be)
-           ;; the first of its classes / parent-classes with slots
-           (first (reverse (view-classes-and-storable-slots vclass))))
-         (class (view-class class-and-slots))
-         (sels
-           (loop for slot in (slot-defs class-and-slots)
-                 for res = (generate-attribute-reference class slot)
-                 when res
-                 collect (cons slot res))))
-    (or sels
-        (error "No slots of type :base in view-class ~A" (class-name vclass)))))
 
 (defun generate-retrieval-joins-list (class retrieval-method)
   "Returns list of immediate join slots for a class."
@@ -393,31 +373,35 @@
         (signal-no-database-error database))))
 
 (defmethod update-instance-from-records ((instance standard-db-object)
-                                         &key (database *default-database*)
-                                         this-class)
-  (let* ((view-class (or this-class (class-of instance)))
-         (pclass (car (class-direct-superclasses view-class)))
-         (pres nil))
-    (when (normalizedp view-class)
-      (setf pres (update-instance-from-records instance :database database
-                                               :this-class pclass)))
-    (let* ((view-table (sql-expression :table (view-table view-class)))
-           (vd (choose-database-for-instance instance database))
-           (view-qual (key-qualifier-for-instance instance :database vd
-                                                           :this-class view-class))
-           (sels (generate-selection-list view-class))
-           (res nil))
-      (cond (view-qual
-             (setf res (apply #'select (append (mapcar #'cdr sels)
-                                               (list :from  view-table
-                                                     :where view-qual
-                                                     :result-types nil
-                                                     :database vd))))
-             (when res
-	       (setf (slot-value instance 'view-database) vd)
-               (get-slot-values-from-view instance (mapcar #'car sels) (car res))))
-            (pres)
-            (t nil)))))
+                                         &key (database *default-database*))
+  "Updates a database object with the current values stored in the database
+
+   TODO: Should this update immediate join slots similar to build-objects?
+         Can we just call build-objects?, update-objects-joins?
+  "
+
+  (let* ((classes-and-slots (view-classes-and-storable-slots instance))
+         (vd (choose-database-for-instance instance database)))
+    (labels ((do-update (class-and-slots)
+               (let* ((select-list (make-select-list class-and-slots :do-joins-p nil))
+                      (view-table (sql-table select-list))
+                      (view-qual (key-qualifier-for-instance
+                                  instance :database vd
+                                  :this-class (view-class select-list)))
+                      (res (when view-qual
+                             (first
+                              (apply #'select
+                                     (append (full-select-list select-list)
+                                             (list :from view-table
+                                                   :where view-qual
+                                                   :result-types nil
+                                                   :database vd)))))))
+                 (when res
+                   (setf (slot-value instance 'view-database) vd)
+                   (get-slot-values-from-view instance (slot-list select-list) res))
+                 )))
+      (loop for class-and-slots in classes-and-slots
+            do (do-update class-and-slots)))))
 
 
 (defmethod get-slot-value-from-record ((instance standard-db-object)
@@ -1074,7 +1058,53 @@
           collect tbl into rtn
           finally (return rtn))))
 
-(defun full-select-list ( classes )
+
+(defclass select-list ()
+  ((view-class :accessor view-class :initarg :view-class :initform nil)
+   (select-list :accessor select-list :initarg :select-list :initform nil)
+   (slot-list :accessor slot-list :initarg :slot-list :initform nil)
+   (joins :accessor joins :initarg :joins :initform nil)
+   (join-slots :accessor join-slots :initarg :join-slots :initform nil)))
+
+(defmethod view-table ((o select-list))
+  (view-table (view-class o)))
+
+(defmethod sql-table ((o select-list))
+  (sql-expression :table (view-table o)))
+
+(defun make-select-list (class-and-slots &key (do-joins-p nil))
+  (let* ((class-and-slots
+           ;; find the first class with slots for us to select (this should be)
+           ;; the first of its classes / parent-classes with slots
+           (etypecase class-and-slots
+             (class-and-slots class-and-slots)
+             ((or symbol standard-db-class)
+              (first (reverse (view-classes-and-storable-slots
+                               (to-class class-and-slots)))))))
+         (class (view-class class-and-slots))
+         (join-slots (when do-joins-p (immediate-join-slots class))))
+    (multiple-value-bind (slots sqls)
+        (loop for slot in (slot-defs class-and-slots)
+              for sql = (generate-attribute-reference class slot)
+              collect slot into slots
+              collect sql into sqls
+              finally (return (values slots sqls)))
+      (unless slots
+        (error "No slots of type :base in view-class ~A" (class-name class)))
+      (make-instance
+       'select-list
+       :view-class class
+       :select-list sqls
+       :slot-list slots
+       :join-slots join-slots
+       ;; only do a single layer of join objects
+       :joins (when do-joins-p
+                (loop for js in join-slots
+                      collect (make-select-list
+                               (join-slot-class js)
+                               :do-joins-p nil)))))))
+
+(defun full-select-list ( select-lists )
   "Returns a list of sql-ref of things to select for the given classes
 
    THIS NEEDS TO MATCH THE ORDER OF build-objects
@@ -1086,17 +1116,12 @@
     We also used to remove duplicates, but that seems like it would make
     filling/building objects much more difficult so skipping for now...
   "
-  (setf classes (mapcar #'to-class (listify classes)))
-  (mapcar
-   #'cdr
-   (loop for class in classes
-         appending (generate-selection-list class)
-         appending
-            (loop for join-slot in (immediate-join-slots class)
-                  for join-class = (join-slot-class-name join-slot)
-                  appending (generate-selection-list join-class)))))
+  (loop for s in (listify select-lists)
+        appending (select-list s)
+        appending (loop for join in (joins s)
+                        appending (select-list join))))
 
-(defun build-objects (classes row database &optional existing-instances)
+(defun build-objects (select-lists row database &optional existing-instances)
   "Used by find-all to build objects.
 
    THIS NEEDS TO MATCH THE ORDER OF FULL-SELECT-LIST
@@ -1113,21 +1138,23 @@
       would be multiple rows per object, but we would return an object per row
    "
   (setf existing-instances (listify existing-instances))
-  (loop for class in classes
-        for existing = (pop existing-instances)
-        for object = (or existing
-                         (make-instance class :view-database database))
-        do (loop for (slot . _) in (generate-selection-list class)
-                 do (update-slot-from-db-value object slot (pop row)))
-        do (loop for join-slot in (immediate-join-slots class)
-                 for join-class = (join-slot-class-name join-slot)
-                 for join-object =
-                     (setf
-                      (easy-slot-value object join-slot)
+  (loop
+    for select-list in select-lists
+    for class = (view-class select-list)
+    for existing = (pop existing-instances)
+    for object = (or existing
+                     (make-instance class :view-database database))
+    do (loop for slot in (slot-list select-list)
+             do (update-slot-from-db-value object slot (pop row)))
+    do (loop for join-slot in (join-slots select-list)
+             for join in (joins select-list)
+             for join-class = (view-class join)
+             for join-object =
+                (setf (easy-slot-value object join-slot)
                       (make-instance join-class))
-                 do (loop for (slot . _) in (generate-selection-list join-class)
-                          do (update-slot-from-db-value join-object slot (pop row))))
-        do (when existing (instance-refreshed object))
+             do (loop for slot in (slot-list join)
+                      do (update-slot-from-db-value join-object slot (pop row))))
+    do (when existing (instance-refreshed object))
         collect object))
 
 (defun find-all (view-classes
@@ -1163,7 +1190,9 @@
            (loop for class in sclasses
                  appending (loop for slot in (immediate-join-slots class)
                                  collect (join-slot-qualifier class slot))))
-         (full-select-list (full-select-list sclasses))
+         (select-lists (loop for class in sclasses
+                             collect (make-select-list class :do-joins-p t)))
+         (full-select-list (full-select-list select-lists))
          (where (clsql-ands (append (listify where) (listify join-where))))
          #|
           (_ (format t "~&sclasses: ~W~%ijc: ~W~%tables: ~W~%"
@@ -1178,7 +1207,7 @@
          (return-objects
            (loop for row in rows
                  for old-objs = (pop instances)
-                 for objs = (build-objects sclasses row database
+                 for objs = (build-objects select-lists row database
                                            (when refresh old-objs))
                  collecting (if flatp
                                 (delist-if-single objs)
