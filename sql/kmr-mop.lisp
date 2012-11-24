@@ -86,8 +86,8 @@
   "Looks up a direct-slot-definition by name"
   (setf class (to-class class)
         slot-name (to-slot-name slot-name))
-  (find-slot class (lambda (slot-def) (eql (to-slot-name slot-def) slot-name))
-             direct? recurse?))
+  (find-slot-if class (lambda (slot-def) (eql (to-slot-name slot-def) slot-name))
+                direct? recurse?))
 
 ;; Lispworks has symbol for slot rather than the slot instance
 (defun %svuc-slot-name (slot)
