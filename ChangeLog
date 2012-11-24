@@ -30,6 +30,11 @@
 	* update-object-join-slots, (max-len *default-update-objects-max-len*)
 	  now controls the number of objects retrieved, (via :limit) instead
 	  of the number of keys sent to the database
+	* update-object-join-slots, with (eql slots t) now pulls immediate
+	  join slots only (as the documentation said) instead of deferred (as
+	  the code did).  Immediate seems to make more sense with the rest of
+	  the system. Deferred slots can still be updated by specifying their
+	  slot names specifically
 	* find-all - bug fixes in table references, previously where clauses
 	  surrounded by a list would have none of their references added to
 	  the select. This was being exploited by certain code paths.  Now

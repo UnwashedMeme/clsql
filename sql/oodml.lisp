@@ -859,11 +859,12 @@
    if slot-names is T return all deferred slots"
   (setf class (to-class class))
   (if (eq t slot-names)
-      (generate-retrieval-joins-list class :deferred)
-      (loop for slot in slot-names
+      (generate-retrieval-joins-list class :immediate)
+      (loop for slot in (listify slot-names)
             for def = (find-slot-by-name class slot)
-            if (and def (join-slot-p def))
+            when (and def (join-slot-p def))
             collecting def
+            unless (and def (join-slot-p def))
             do (warn "Unable to find join slot named ~S in class ~S." slot class))))
 
 (defun get-joined-objects (objects slotdef &optional force-p max-len)
@@ -875,7 +876,7 @@
            (home-key (join-slot-info-value slotdef :home-key))
            (foreign-key (join-slot-info-value slotdef :foreign-key))
            (foreign-key-values
-             (loop for object in objects
+             (loop for object in (listify objects)
                    when (or force-p
                             (not (slot-boundp object slot-name)))
                    collect (slot-value object home-key))))

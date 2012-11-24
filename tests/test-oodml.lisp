@@ -903,7 +903,7 @@
 				 :flatp t))
 	       (dea-list-copy (copy-seq dea-list))
 	       (initially-unbound (every #'(lambda (dea) (not (slot-boundp dea 'address))) dea-list)))
-	  (update-objects-joins dea-list)
+	  (update-objects-joins dea-list :slots 'address)
 	  (values
 	    initially-unbound
 	    (equal dea-list dea-list-copy)
