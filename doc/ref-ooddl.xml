@@ -717,6 +717,25 @@ CLSQL> (title test-user)
 CLSQL> (nick test-user)
 "test-user"
       </screen>
+      <para>
+        Notes from a refactor of this code.
+
+        There are many assumptions that need to be met for normalized classes to work
+
+        * The each of the classes should have its own single key column (of a different name)
+          that will contain an identical value.  EG: node has a node-id, setting which
+          is a node has a node-id and a setting-id which must be equal.  You cannot use
+          node-id as the primary key on both tables (as I would have expected).  The exception
+          to this seems to be if your class has no slots at all, then you dont need to have a
+          single key column, because your class is fully represented in the db by its parent(s)
+
+        * more than one parent class per normalized class should be considered experimental
+          and untested (vaya con Dios)
+
+        * There are a few code paths that just dont pay any attention to normalized classes
+          eg: delete-records-for-instance
+
+      </para>
       </refsect2>
     </refsect1>
     <refsect1>

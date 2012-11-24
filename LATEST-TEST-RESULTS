@@ -1,4 +1,4 @@
-Note from Russ Tyndall <russ@acceleration.net> 2012-09-04 :
+Note from Russ Tyndall <russ@acceleration.net> 2012-11-24 :
 
 This is the current results of running the test suite against all the database
 backends I have accessible, on SBCL / UBUNTU64bit.  It would be great to
@@ -35,11 +35,10 @@ or not correctly skipping those tests
    :TIME/PG/FDML/USEC, :FDML/SELECT/36, :FDDL/CACHE-TABLE-QUERIES/1.
 
 :sqlite3
-12 out of 267 total tests failed: :FDDL/CACHE-TABLE-QUERIES/1, :FDDL/INDEX/3, 
-   :FDDL/VIEW/2, :FDDL/ATTRIBUTES/8, :FDDL/ATTRIBUTES/7, :FDDL/ATTRIBUTES/6, 
+9 out of 267 total tests failed: :FDDL/CACHE-TABLE-QUERIES/1, :FDDL/INDEX/3, 
+   :FDDL/ATTRIBUTES/8, :FDDL/ATTRIBUTES/7, :FDDL/ATTRIBUTES/6, 
    :FDDL/ATTRIBUTES/5, :FDDL/ATTRIBUTES/4, :FDDL/ATTRIBUTES/3, 
-   :FDDL/ATTRIBUTES/2, :FDDL/ATTRIBUTES/1, :FDDL/TABLE/3.
-
+   :FDDL/ATTRIBUTES/2.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 Version 3.0.0 run on August 3, 2004 on x86, x86_64, and PowerPC platforms

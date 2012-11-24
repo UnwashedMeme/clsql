@@ -1,4 +1,43 @@
-2012-11-14  Russ Tyndall <russ@acceleration.net>
+2012-11-20 Russ Tyndall <russ@acceleration.net>
+	## Large refactoring of sql/oodml.lisp and surrounding code
+	* cleaned up update-records-from-* to utilize a single codepath
+	  previously there was much duplicate code
+	* tried to further unify direct/effective slot-defs
+	* cleaned up much of the normalized classes code to be more
+	  consistent in how it operated, and the code it used (less
+	  copy/paste more functions)
+	* tried to standardize iteration a bit, previously almost all
+	  of the iteration constructs in CL were used. Tried to
+	  standardize on loop for readability / cohesiveness
+	* made functions to more easily look up particular slots, since
+	  this was being done differently in each function
+	* added more doc-strings
+	* inner-joins that are referenced in where clauses are no longer
+	  added to the select table list (since they are also referenced
+	  in the join position and this led to sql errors)
+	* added collect-table-references methods for sql-ident-table and
+	  list
+
+	## Semantic changes
+	* disallow where-less updates from objects (ie cannot call
+          update-records-from* with a keyless object)
+	* ordered-class-direct-slots now returns direct-slot-definitions
+	  instead of effective-slot-definitions (as per name)
+	* direct-slot-definitions now contain the db-info hash table (same
+	  as effective slots)
+	* Some convoluted logic concerning slot-value-using-class setting
+	  fields to nil from unbound has changed
+	* update-object-join-slots, (max-len *default-update-objects-max-len*)
+	  now controls the number of objects retrieved, (via :limit) instead
+	  of the number of keys sent to the database
+	* find-all - bug fixes in table references, previously where clauses
+	  surrounded by a list would have none of their references added to
+	  the select. This was being exploited by certain code paths.  Now
+	  all where clauses are searched
+	  - No longer includes order-by and distinct as columns in the select
+	    list
+
+2012-11-14 Russ Tyndall <russ@acceleration.net>
 	* sql/oodml.lisp - split out a method
 	update-records-from-instance-slots-and-values to provide an
 	extension point for objects being saved via
