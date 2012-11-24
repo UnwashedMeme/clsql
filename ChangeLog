@@ -15,7 +15,7 @@
 	* inner-joins that are referenced in where clauses are no longer
 	  added to the select table list (since they are also referenced
 	  in the join position and this led to sql errors)
-	* added collect-table-references methods for sql-ident-table and
+	* collect-table-references methods added for sql-ident-table and
 	  list
 
 	## Semantic changes
@@ -35,7 +35,8 @@
 	  the select. This was being exploited by certain code paths.  Now
 	  all where clauses are searched
 	  - No longer includes order-by and distinct as columns in the select
-	    list
+	    list.  The values seemed to be ignored in every code path and distinct
+	    seemed to be intended to be used as a boolean anyway
 
 2012-11-14 Russ Tyndall <russ@acceleration.net>
 	* sql/oodml.lisp - split out a method

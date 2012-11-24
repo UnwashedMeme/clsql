@@ -338,7 +338,7 @@
   "Makes sure that if a class has unfilled slots that claim to have a default,
    that we retrieve those defaults from the database
 
-   TODO: use update slots-from-record instead to batch this!"
+   TODO: use update-slots-from-record (doesnt exist) instead to batch this!"
   (loop for class-and-slots in (listify classes-and-slots)
         do (loop for slot in (slot-defs class-and-slots)
                  do (when (and (slot-has-default-p slot)
@@ -908,7 +908,7 @@
    specified by SLOTS in the supplied list of View Class instances OBJECTS.
 
    SLOTS is t by default which means that all join slots
-   with :retrieval :immediate (TODO: the code seems to say deffered) are updated.
+   with :retrieval :immediate are updated.
 
    CLASS-NAME is used to specify the View Class of all instance in OBJECTS and
    default to nil which means that the class of the first instance in OBJECTS
@@ -989,24 +989,23 @@
          (foreign-keys (listify (join-slot-info-value slot-def :foreign-key)))
          (home-keys (listify (join-slot-info-value slot-def :home-key))))
     (when (all-home-keys-have-values-p object slot-def)
-      (list ;; TODO: remove this list and make it work anyway
-       (clsql-ands
-        (loop for hk in home-keys
-              for fk in foreign-keys
-              for fksd = (slotdef-for-slot-with-class fk jc)
-              for fk-sql = (typecase fk
-                             (symbol
-                              (sql-expression
-                               :attribute (database-identifier fksd nil)
-                               :table (database-identifier jc nil)))
-                             (t fk))
-              for hk-val = (typecase hk
-                             ((or symbol
-                                  view-class-effective-slot-definition
-                                  view-class-direct-slot-definition)
-                              (easy-slot-value object hk))
-                             (t hk))
-              collect (sql-operation '== fk-sql hk-val)))))))
+      (clsql-ands
+       (loop for hk in home-keys
+             for fk in foreign-keys
+             for fksd = (slotdef-for-slot-with-class fk jc)
+             for fk-sql = (typecase fk
+                            (symbol
+                             (sql-expression
+                              :attribute (database-identifier fksd nil)
+                              :table (database-identifier jc nil)))
+                            (t fk))
+             for hk-val = (typecase hk
+                            ((or symbol
+                                 view-class-effective-slot-definition
+                                 view-class-direct-slot-definition)
+                             (easy-slot-value object hk))
+                            (t hk))
+             collect (sql-operation '== fk-sql hk-val))))))
 
 (defmethod select-table-sql-expr ((table T))
   "Turns an object representing a table into the :from part of the sql expression that will be executed "
@@ -1064,7 +1063,12 @@
    (select-list :accessor select-list :initarg :select-list :initform nil)
    (slot-list :accessor slot-list :initarg :slot-list :initform nil)
    (joins :accessor joins :initarg :joins :initform nil)
-   (join-slots :accessor join-slots :initarg :join-slots :initform nil)))
+   (join-slots :accessor join-slots :initarg :join-slots :initform nil))
+  (:documentation
+   "Collects the classes, slots and their respective sql representations
+    so that update-instance-from-recors, find-all, build-objects can share this
+    info and calculate it once.  Joins are select-lists for each immediate join-slot
+    but only if make-select-list is called with do-joins-p"))
 
 (defmethod view-table ((o select-list))
   (view-table (view-class o)))
@@ -1073,12 +1077,14 @@
   (sql-expression :table (view-table o)))
 
 (defun make-select-list (class-and-slots &key (do-joins-p nil))
+  "Make a select-list for the current class (or class-and-slots) object.
+   "
   (let* ((class-and-slots
-           ;; find the first class with slots for us to select (this should be)
-           ;; the first of its classes / parent-classes with slots
            (etypecase class-and-slots
              (class-and-slots class-and-slots)
              ((or symbol standard-db-class)
+              ;; find the first class with slots for us to select (this should be)
+              ;; the first of its classes / parent-classes with slots
               (first (reverse (view-classes-and-storable-slots
                                (to-class class-and-slots)))))))
          (class (view-class class-and-slots))
@@ -1108,13 +1114,6 @@
   "Returns a list of sql-ref of things to select for the given classes
 
    THIS NEEDS TO MATCH THE ORDER OF build-objects
-
-   TODO: this used to include order-by and distinct as more things to select.
-    distinct seems to always be used in a boolean context, so it doesnt seem
-    like appending it to the select makes any sense
-
-    We also used to remove duplicates, but that seems like it would make
-    filling/building objects much more difficult so skipping for now...
   "
   (loop for s in (listify select-lists)
         appending (select-list s)
