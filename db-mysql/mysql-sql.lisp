@@ -159,7 +159,9 @@
                   (:boolean-ptr
                    (uffi:with-foreign-object (fo :byte)
                      (setf (uffi:deref-pointer fo :byte)
-                           (if (or (zerop value) (null value))
+                           (if (or (and (numberp value)
+                                        (zerop value))
+                                   (null value))
                                0
                                1))
                      (mysql-options mysql-ptr option-code fo)))))))))))
