@@ -303,6 +303,12 @@
                   (if (string-equal (fourth field-info) "0")
                       1 0)))))
 
+(defmethod database-last-auto-increment-id ((database sqlite3-database) table column)
+  (declare (ignore table column))
+  (car (query "SELECT LAST_INSERT_ROWID();"
+	      :flatp t :field-names nil
+	      :database database)))
+
 (defmethod database-create (connection-spec (type (eql :sqlite3)))
   (declare (ignore connection-spec))
   ;; databases are created automatically by Sqlite3
@@ -320,7 +326,26 @@
     (or (string-equal ":memory:" name)
         (and (probe-file name) t))))
 
+(defmethod database-get-type-specifier ((type (eql 'integer))
+                                        args database
+                                        (db-type (eql :sqlite3)))
+  (declare (ignore database))
+  (if args
+      (format nil "INTEGER(~A)" (car args))
+      "INTEGER"))
+
+(defmethod database-get-type-specifier ((type (eql 'integer))
+                                        args database
+                                        (db-type (eql :sqlite3)))
+  (declare (ignore database))
+  (if args
+      (format nil "INTEGER(~A)" (car args))
+      "INTEGER"))
+
 ;;; Database capabilities
 
 (defmethod db-type-has-boolean-where? ((db-type (eql :sqlite3)))
   nil)
+
+(defmethod db-type-has-auto-increment? ((db-type (eql :sqlite3)))
+  t)

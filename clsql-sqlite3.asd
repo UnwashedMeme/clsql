@@ -32,5 +32,6 @@
 	    :components
 	    ((:file "sqlite3-package")
 	     (:file "sqlite3-loader" :depends-on ("sqlite3-package"))
-	     (:file  "sqlite3-api" :depends-on ("sqlite3-loader"))
-	     (:file "sqlite3-sql" :depends-on ("sqlite3-api"))))))
+	     (:file "sqlite3-api" :depends-on ("sqlite3-loader"))
+	     (:file "sqlite3-sql" :depends-on ("sqlite3-api"))
+	     (:file "sqlite3-methods" :depends-on ("sqlite3-sql"))))))

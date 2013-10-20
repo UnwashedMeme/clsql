@@ -54,12 +54,12 @@ set to the right path before compiling or loading the system.")
 (defvar *uffi-library-loaded* nil
   "T if foreign library was able to be loaded successfully")
 
-(defun load-uffi-foreign-library ()
-  (clsql:push-library-path clsql-uffi-system::*clsql-uffi-library-dir*)
-  (find-and-load-foreign-library *clsql-uffi-library-filenames*
-                                 :module "clsql-uffi"
-                                 :supporting-libraries
-                                 *clsql-uffi-supporting-libraries*)
-  (setq *uffi-library-loaded* t))
+;; (defun load-uffi-foreign-library ()
+;;   (clsql:push-library-path clsql-uffi-system::*clsql-uffi-library-dir*)
+;;   (find-and-load-foreign-library *clsql-uffi-library-filenames*
+;;                                  :module "clsql-uffi"
+;;                                  :supporting-libraries
+;;                                  *clsql-uffi-supporting-libraries*)
+;;   (setq *uffi-library-loaded* t))
 
-(load-uffi-foreign-library)
+;; (load-uffi-foreign-library)

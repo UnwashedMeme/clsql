@@ -193,3 +193,8 @@ the arguments EXPR and DATABASE."))
 
 (defgeneric database-constraint-statement  (constraints database)
   )
+
+(defgeneric database-translate-constraint (constraint database)
+  (:documentation "Given a column constraint returns its
+database-specific name. For example, auto-increment constraints can
+have different names in different database engines."))

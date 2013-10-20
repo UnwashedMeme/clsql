@@ -71,6 +71,20 @@
      (radix :int))
   :returning :unsigned-long)
 
+#-windows
+(uffi:def-function ("strtoull" c-strtoull)
+    ((str (* :unsigned-char))
+     (endptr (* :unsigned-char))
+     (radix :int))
+  :returning :unsigned-long-long)
+
+#+windows
+(uffi:def-function ("_strtoui64" c-strtoull)
+    ((str (* :unsigned-char))
+     (endptr (* :unsigned-char))
+     (radix :int))
+  :returning :unsigned-long-long)
+
 (uffi:def-function "atol"
     ((str (* :unsigned-char)))
   :returning :long)
@@ -108,6 +122,11 @@
            (type char-ptr-def char-ptr))
   (c-strtoul char-ptr uffi:+null-cstring-pointer+ 10))
 
+(defun strtoull (char-ptr)
+  (declare (optimize (speed 3) (safety 0) (space 0))
+           (type char-ptr-def char-ptr))
+  (c-strtoull char-ptr uffi:+null-cstring-pointer+ 10))
+
 (defun convert-raw-field (char-ptr type &key length encoding)
  (declare (optimize (speed 3) (safety 0) (space 0))
           (type char-ptr-def char-ptr))
@@ -127,12 +146,14 @@
       (:uint
        (strtoul char-ptr))
       ((:int64 :uint64)
-       (uffi:with-foreign-object (high32-ptr :unsigned-int)
+       (strtoull char-ptr)
+       #|(uffi:with-foreign-object (high32-ptr :unsigned-int)
          (let ((low32 (atol64 char-ptr high32-ptr))
                (high32 (uffi:deref-pointer high32-ptr :unsigned-int)))
            (if (zerop high32)
                low32
-               (make-64-bit-integer high32 low32)))))
+               (make-64-bit-integer high32 low32))))|#
+)
       (:blob
        (if length
            (uffi:convert-from-foreign-usb8 char-ptr length)
