@@ -621,7 +621,30 @@
          (intern (symbol-name-default-case val) :keyword)))
       (symbol
        (when (< 0 (length val))
-         (intern (symbol-name-default-case val))))
+	 (let ((symbol-name val) (symbol-package nil) 
+	       (package-symbol-position (position #\: val)))
+	   ;;ensure that in case the symbol is a keyword or made up of a package
+	   ;;and a symbol whether exported or not that we would return either the
+	   ;;keyword or the correct symbol of the designated package. If no pacakge
+	   ;;is found or the original symbol does not have a package component then
+	   ;;simply intern normally
+	   (if package-symbol-position
+	       (cond
+		 ((= package-symbol-position 0)
+		  (intern (symbol-name-default-case symbol-name) :keyword))
+		 ((= package-symbol-position (1- (length val)))
+		  (intern (symbol-name-default-case symbol-name)))
+		 (t
+		  (setf symbol-package (find-package
+					(string-upcase 
+					 (subseq val 0 package-symbol-position))))
+		  (if (equal (char symbol-name (1+ package-symbol-position)) #\:)
+		      (setf symbol-name (subseq val (+ package-symbol-position 2)))
+		      (setf symbol-name (subseq val (1+ package-symbol-position))))
+		  (if symbol-package
+		      (intern (symbol-name-default-case symbol-name) symbol-package)
+		      (intern (symbol-name-default-case symbol-name)))))
+	       (intern (symbol-name-default-case val))))))
       ((smallint mediumint bigint integer universal-time)
        (etypecase val
          (string (parse-integer val))
