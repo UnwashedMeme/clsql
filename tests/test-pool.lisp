@@ -80,5 +80,4 @@
                (eq p (clsql-sys::find-or-create-connection-pool nil :dummy))
                (eq p (clsql-sys::find-or-create-connection-pool :spec :dummy))))
      nil T nil)
-
     ))
