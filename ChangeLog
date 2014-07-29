@@ -1,3 +1,14 @@
+2014-07-29 Russ Tyndall <russ@acceleration.net>
+	* mysql-api.lisp, mysql-sql.lisp, test-connection.lisp
+	Added code to the mysql backend to pull all result sets as
+	multiple args.  This fixes a bug in the mysql backend where trying
+	to query after executing a stored procedure (even on a pooled
+	connection) would raise an error about the connection being out of
+	sync.  The second result set for the stored procedure seems to be
+	empty, so not sure why we need to iterate past it.
+
+	patch / bugreport provided by: Ilya Khaprov deadtrickster@github
+
 2014-06-11 Russ Tyndall <russ@acceleration.net>
 	* databases.lisp, sqlite3-sql.lisp
 	Similar to and overriding the patch 2014-01-30 937a3d, adds a

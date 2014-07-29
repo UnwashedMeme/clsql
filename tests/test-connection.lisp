@@ -60,8 +60,6 @@
       (progn
         (clsql-sys:disconnect)
         (test-connect :pool t)
-        (ignore-errors
-         (clsql-sys:execute-command "DROP PROCEDURE prTest;"))
         (clsql-sys:execute-command
          "CREATE PROCEDURE prTest () BEGIN SELECT 1 \"a\",2 \"b\",3 \"c\" ,4  \"d\" UNION SELECT 5,6,7,8; END;")
         (clsql-sys:disconnect)
@@ -73,6 +71,8 @@
             (clsql-sys:disconnect)
             (test-connect :pool t)
             (values p0 p1))))
+   (ignore-errors
+    (clsql-sys:execute-command "DROP PROCEDURE prTest;"))
    (test-connect))
  ((1 2 3 4) (5 6 7 8))
  ((1 2 3 4) (5 6 7 8)))

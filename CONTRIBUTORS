@@ -8,6 +8,7 @@ Marc Battyani (Large object support for postgresql, initial connection pool code
 Ryan Davis, Nathan Bird, & Russ Tyndall (sponsored by http://www.acceleration.net/programming/)
 Victor (vityok@github), sqlite3 backend updates and clsql_uffi long-long support
 Aaron Burrow, clsql_uffi unsigned integer bugs
+Ilya Khaprov deadtrickster@github - mysql backend stored-procedure / multiple result set support
 
 
 
