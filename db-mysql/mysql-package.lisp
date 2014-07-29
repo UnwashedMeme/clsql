@@ -103,6 +103,7 @@
      #:mysql-use-result
      #:mysql-options
      #:mysql-free-result
+     #:mysql-next-result
      #:mysql-row-seek
      #:mysql-field-seek
      #:mysql-fetch-row

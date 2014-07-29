@@ -290,6 +290,12 @@
   :module "mysql"
   :returning :void)
 
+(declaim (inline mysql-next-result))
+(uffi:def-function "mysql_next_result"
+    ((mysql mysql-mysql))
+  :module "mysql"
+  :returning :int)
+
 (declaim (inline mysql-fetch-row))
 (uffi:def-function "mysql_fetch_row"
     ((res mysql-mysql-res))
