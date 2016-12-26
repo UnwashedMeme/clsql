@@ -100,8 +100,8 @@
 
 #+lispworks
 (defvar +lw-has-without-preemption+
-  #+lispworks6 nil
-  #-lispworks6 t)
+  #+(or lispworks6 lispworks7) nil
+  #-(or lispworks6 lispworks7) t)
 #+lispworks
 (defvar +lw-global-lock+
   (unless +lw-has-without-preemption+
