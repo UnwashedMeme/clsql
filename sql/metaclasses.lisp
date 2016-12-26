@@ -483,7 +483,8 @@ implementations."
 
          (macrolet
              ((safe-copy-value (name &optional default)
-                (let ((fn (intern (format nil "~A~A" 'view-class-slot- name ))))
+                (let ((fn (intern (concatenate 'string (symbol-name 'view-class-slot-)
+                                               (symbol-name name)))))
                   `(setf (slot-value esd ',name)
                     (or (when (slot-boundp dsd ',name)
                           (delistify-dsd (,fn dsd)))
