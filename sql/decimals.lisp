@@ -10,6 +10,7 @@
 ;; WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#-#.(cl:if (cl:find-package "DECIMALS") '(and) '(or))
 (defpackage #:decimals
   (:use #:cl)
   (:export #:round-half-away-from-zero
@@ -19,6 +20,13 @@
            #:define-decimal-formatter))
 
 (in-package #:decimals)
+
+#+#.(cl:if (cl:find-package "DECIMALS") '(and) '(or))
+(export '(round-half-away-from-zero
+          format-decimal-number
+          parse-decimal-number
+          decimal-parse-error
+          define-decimal-formatter))
 
 
 (defun round-half-away-from-zero (number &optional (divisor 1))
