@@ -240,7 +240,10 @@ strings."
      (defclass ,class ,supers ,slots
        ,@(if (find :metaclass `,cl-options :key #'car)
              `,cl-options
-             (cons '(:metaclass clsql-sys::standard-db-class) `,cl-options)))
+           (cons '(:metaclass clsql-sys::standard-db-class) `,cl-options))
+       #+lispworks
+       ,@(unless (find :optimize-slot-access `,cl-options :key #'car)
+           `((:optimize-slot-access nil))))
      (finalize-inheritance (find-class ',class))
      (find-class ',class)))
 
