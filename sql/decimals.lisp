@@ -12,16 +12,9 @@
 
 #-#.(cl:if (cl:find-package "DECIMALS") '(and) '(or))
 (defpackage #:decimals
-  (:use #:cl)
-  (:export #:round-half-away-from-zero
-           #:format-decimal-number
-           #:parse-decimal-number
-           #:decimal-parse-error
-           #:define-decimal-formatter))
-
+  (:use #:cl))
 (in-package #:decimals)
 
-#+#.(cl:if (cl:find-package "DECIMALS") '(and) '(or))
 (export '(round-half-away-from-zero
           format-decimal-number
           parse-decimal-number
