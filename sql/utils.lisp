@@ -100,12 +100,12 @@
 
 #+lispworks
 (defvar +lw-has-without-preemption+
-  #+lispworks6 nil
-  #-lispworks6 t)
+  #+(or lispworks6 lispworks7) nil
+  #-(or lispworks6 lispworks7) t)
 #+lispworks
 (defvar +lw-global-lock+
   (unless +lw-has-without-preemption+
-    (mp:make-lock :name "CLSQL" :important-p nil :safep t :recursivep nil
+    (mp:make-lock :name "CLSQL" :important-p nil :safep t :recursivep t
                   :sharing t)))
 
 (defmacro without-interrupts (&body body)

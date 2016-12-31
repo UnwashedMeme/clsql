@@ -41,7 +41,7 @@
       (unless (slot-boundp instance slot-name)
         (let ((*db-deserializing* t))
           (cond
-            ((join-slot-p slot-def)
+            ((join-slot-p slot-object)
              (setf (slot-value instance slot-name)
                    (if (view-database instance)
                        (fault-join-slot class instance slot-object)
@@ -49,9 +49,9 @@
                        ;; its joined-to object was not in the database
                        nil
                        )))
-            ((not-direct-normalized-slot-p class slot-def)
+            ((not-direct-normalized-slot-p class slot-name)
              (if (view-database instance)
-                 (update-fault-join-normalized-slot class instance slot-def)
+                 (update-fault-join-normalized-slot class instance slot-object)
                  (setf (slot-value instance slot-name) nil))))))))
   (call-next-method))
 
@@ -240,7 +240,10 @@ strings."
      (defclass ,class ,supers ,slots
        ,@(if (find :metaclass `,cl-options :key #'car)
              `,cl-options
-             (cons '(:metaclass clsql-sys::standard-db-class) `,cl-options)))
+           (cons '(:metaclass clsql-sys::standard-db-class) `,cl-options))
+       #+lispworks
+       ,@(unless (find :optimize-slot-access `,cl-options :key #'car)
+           `((:optimize-slot-access nil))))
      (finalize-inheritance (find-class ',class))
      (find-class ',class)))
 
