@@ -22,24 +22,30 @@
 (defpackage :clsql-postgresql-socket3
     (:use #:common-lisp #:clsql-sys #:postgresql-socket3)
     (:export #:postgresql-socket3-database)
-    (:documentation "This is the CLSQL socket interface (protocol version 3) to PostgreSQL."))
+    (:documentation
+     "This is the CLSQL socket interface (protocol version 3) to PostgreSQL."))
 
 (in-package #:clsql-postgresql-socket3)
 
 (defvar *sqlreader* (cl-postgres:copy-sql-readtable))
-(let ((dt-fn (lambda (useconds-since-2000)
-	       (let ((sec (truncate
-			   (/ useconds-since-2000
-			      1000000)))
-		     (usec (mod useconds-since-2000
-				1000000)))
-		 (clsql:make-time :year 2000 :second sec :usec usec)))))
+
+
+(labels ((d-fn (days-since-2000)
+           (clsql:make-date :year 2000 :day (+ 1 days-since-2000)))
+         (dt-tz-fn (useconds-since-2000
+                    &aux (dt (dt-fn useconds-since-2000)))
+           (setf (clsql-sys::time-is-utc? dt) t)
+           dt)
+         (dt-fn (useconds-since-2000)
+           (let* ((sec (floor useconds-since-2000 1000000))
+                  (usec (mod useconds-since-2000 1000000))
+                  (time (clsql:make-time :year 2000 :second sec :usec usec)))
+             time)))
   (cl-postgres:set-sql-datetime-readers
    :table *sqlreader*
-   :date (lambda (days-since-2000)
-	   (clsql:make-date :year 2000 :day (+ 1 days-since-2000)))
-   :timestamp dt-fn
-   :timestamp-with-timezone dt-fn))
+   :timestamp #'dt-fn
+   :timestamp-with-timezone #'dt-tz-fn
+   :date #'d-fn))
 
 
 
@@ -183,8 +189,8 @@
 	     (declare (type (signed-byte 32) cl-postgres::size))
 	     (if (eq cl-postgres::size -1)
 		 nil
-		 (funcall (cl-postgres::field-interpreter cl-postgres::field)
-			  stream cl-postgres::size)))))
+                 (funcall (cl-postgres::field-interpreter cl-postgres::field)
+                          stream cl-postgres::size)))))
     (let ((results (loop :while (cl-postgres:next-row)
 			 :collect (loop :for field :across fields
 					:collect (cl-postgres:next-field field))))

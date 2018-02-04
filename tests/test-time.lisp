@@ -50,32 +50,47 @@
 (deftest :time/iso-parse/0
     (let* ((time1 (parse-timestring "2010-01-23")))
       (decode-time time1))
-  0 0 0 0 23 1 2010 6)
+  0 0 0 0 23 1 2010 6 nil)
 
 (deftest :time/iso-parse/1
     (let* ((time1 (parse-timestring "2010-01-23T14:56:32Z")))
       (decode-time time1))
-  0 32 56 14 23 1 2010 6)
+ 0 32 56 14 23 1 2010 6 T)
 
 (deftest :time/iso-parse/2
     (let* ((time1 (parse-timestring "2008-02-29 12:46:32")))
       (decode-time time1))
-  0 32 46 12 29 2 2008 5)
+  0 32 46 12 29 2 2008 5 nil)
 
 (deftest :time/iso-parse/3
     (let* ((time1 (parse-timestring "2010-01-23 14:56:32.44")))
       (decode-time time1))
-  440000 32 56 14 23 1 2010 6)
+  440000 32 56 14 23 1 2010 6 nil)
 
 (deftest :time/iso-parse/4
     (let* ((time1 (parse-timestring "2010-01-23 14:56:32.0044")))
       (decode-time time1))
-  4400 32 56 14 23 1 2010 6)
+  4400 32 56 14 23 1 2010 6 nil)
 
 (deftest :time/iso-parse/5
     (let* ((time1 (parse-timestring "2010-01-23 14:56:32.000003")))
       (decode-time time1))
-  3 32 56 14 23 1 2010 6)
+ 3 32 56 14 23 1 2010 6 nil)
+
+(deftest :time/iso-parse/6
+    (let* ((time1 (parse-timestring "2010-01-23T14:56:32-05")))
+      (decode-time time1))
+ 0 32 56 19 23 1 2010 6 t)
+
+(deftest :time/iso-parse/7
+    (let* ((time1 (parse-timestring "2010-01-23T14:56:32-05")))
+      (decode-time time1))
+ 0 32 56 19 23 1 2010 6 t)
+
+(deftest :time/iso-parse/8
+    (let* ((time1 (parse-timestring "2010-01-23T14:56:32-05:30")))
+      (decode-time time1))
+  0 32 26 20 23 1 2010 6 t)
 
 (deftest :time/print-parse/1
     ;;make sure when we print and parse we get the same time.
@@ -84,7 +99,7 @@
 	   (string-time (iso-timestring time))
 	   (time2 (parse-timestring string-time)))
       (decode-time time2))
-  0 44 15 14 4 1 2010 1)
+  0 44 15 14 4 1 2010 1 nil)
 
 (deftest :time/print-parse/2
     ;;make sure when we print and parse we get the same time.
@@ -93,7 +108,7 @@
 	   (string-time (iso-timestring time))
 	   (time2 (parse-timestring string-time)))
       (decode-time time2))
-  3 44 15 14 4 1 2010 1)
+  3 44 15 14 4 1 2010 1 nil)
 
 
 ;; relations of intervals
@@ -303,7 +318,6 @@
 
 ;;; The cross platform dataset uses the 'timestamp' column type which is
 ;;; in sql-92, for all that means.
-
 (deftest :time/cross-platform/no-usec/no-tz
     (with-dataset *cross-platform-datetest*
       (let ((time (parse-timestring "2008-09-09T14:37:29")))
@@ -318,6 +332,8 @@
 	  )))
   #.(format-time nil (parse-timestring "2008-09-09T14:37:29") :format :iso))
 
+ ;; I think the reasonable thing is that timezones be stripped and dates be
+ ;; converted to UTC, as the DB should be returning a zoneless stamp
 (deftest :time/cross-platform/no-usec/tz
     (with-dataset *cross-platform-datetest*
       (let ((time (parse-timestring "2008-09-09T14:37:29-04:00")))
@@ -330,7 +346,9 @@
 				    :where [= [testtime] time] ))))
 	  (format-time nil (parse-timestring testtime) :format :iso)
 	  )))
-  #.(format-time nil (parse-timestring "2008-09-09T14:37:29-04:00") :format :iso))
+ ;; I think the reasonable thing is that timezones be stripped, as the DB should
+ ;; be returning a zoneless stamp
+  #.(format-time nil (parse-timestring "2008-09-09T18:37:29") :format :iso))
 
 ;;;This test gets at the databases that only support miliseconds,
 ;;; not microseconds.
@@ -375,7 +393,7 @@
 				    :where [= [testtime] time] ))))
 	  (format-time nil (parse-timestring testtime) :format :iso)
 	  )))
-  #.(format-time nil (parse-timestring "2008-09-09T14:37:29.000213-04:00") :format :iso))
+  #.(format-time nil (parse-timestring "2008-09-09T18:37:29.000213") :format :iso))
 
 
 
@@ -383,7 +401,8 @@
 ;;; All odbc databases use local times exclusively (they do not send timezone info)
 ;;; Postgresql can use timezones, except when being used over odbc.  This test when
 ;;; run through both postgres socket and postgres odbc should test a fairly
-;;; broad swath of available problem space
+;;; broad swath of available problem space, Timestamptz should return UTC times,
+;;; timestamps should return zoneless local times
 ;;;
 ;;; Things the following tests try to prove correct
 ;;;  * Reading and writing usec and usec-less times
@@ -406,7 +425,7 @@
 			       :where [= [testtime] time] ))
 	(values (iso-timestring (parse-timestring testtime))
 		(iso-timestring (parse-timestring testtimetz))))))
-  #.(iso-timestring (parse-timestring "2008-09-09T14:37:29.000213-04:00"))
+  #.(iso-timestring (parse-timestring "2008-09-09T18:37:29.000213"))
   #.(iso-timestring (parse-timestring "2008-09-09T14:37:29.000213-04:00")))
 
 (deftest :time/pg/oodml/no-usec
@@ -423,7 +442,7 @@
 	(update-instance-from-records o)
 	(values (iso-timestring (testtime o))
 		(iso-timestring (testtimetz o))))))
-  #.(iso-timestring (parse-timestring "2008-09-09T14:37:29-04:00"))
+  #.(iso-timestring (parse-timestring "2008-09-09T18:37:29"))
   #.(iso-timestring (parse-timestring "2008-09-09T14:37:29-04:00")))
 
 (deftest :time/pg/oodml/usec
@@ -441,7 +460,7 @@
 	  (values (iso-timestring (testtime o))
 		  (iso-timestring (testtimetz o)))
 	  )))
-    #.(iso-timestring (parse-timestring "2008-09-09T14:37:29.000278-04:00"))
+    #.(iso-timestring (parse-timestring "2008-09-09T18:37:29.000278"))
     #.(iso-timestring (parse-timestring "2008-09-09T14:37:29.000278-04:00")))
 
 (deftest :time/historic-datetimes

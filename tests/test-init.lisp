@@ -390,7 +390,7 @@
   *default-database*)
 
 (defun rl ()
-  (rapid-load :postgresql))
+  (rapid-load :postgresql-socket3))
 
 (defun rlm ()
   (rapid-load :mysql))

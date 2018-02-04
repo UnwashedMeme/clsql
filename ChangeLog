@@ -1,3 +1,30 @@
+2018-02-03 Russ Tyndall <russ@acceleration.net>
+	* sql/time.lisp, tests/time.lisp:	
+	Better distinguishing between zoneless timestamps and UTC times,
+	particularly as relates to postgresql-socket(3) backends. Without
+	this change, timestamptzs are read as localtimes and saved as
+	localtimes, when they should be read and printed as UTC times,
+	this bug will lead to dates changing every save as they are being
+	reconverted to UTC again.
+
+	We followed a minimal approach (following postgresql' lead), we
+	simply add a is-utc? boolean.  Before this, zoned times were
+	converted to UTC, but since we never tracked that it was a UTC
+	time vs a zoneless time, there was conflation between the two.  In
+	order to preserver comparability between dates and times that are
+	local vs UTC. I wrote a `time-to-utc` utilizing decode-time's
+	implementation dependent timezone defaulting.
+	(I verified the math by comparing results to the local-time
+	library from quicklisp).
+
+	Ultimately, adoption of a third party datetime library is my
+	strong preference (eg: local-time).  While this project has, as a
+	whole refrained from outside requirements, I think that we should
+	consider moving to local-time as our date / time format, or
+	providing that as an option, both to support a semi standardized
+	eco system, and also to have a more robust timestamp implementation.
+
+
 2016-01-26 Kevin Rosenberg <kevin@rosenberg.net>
 	* Version 6.7.0 release
 	* sql/utils.lisp: Apply patch from Martin Simmons for

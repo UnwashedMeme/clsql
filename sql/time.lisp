@@ -54,14 +54,15 @@
 ;; ------------------------------------------------------------
 ;; time classes: wall-time, duration
 
-(eval-when (:compile-toplevel :load-toplevel)
 
+(eval-when (:compile-toplevel :load-toplevel)
 (defstruct (wall-time (:conc-name time-)
                       (:constructor %make-wall-time)
                       (:print-function %print-wall-time))
   (mjd 0 :type fixnum)
   (second 0 :type fixnum)
-  (usec 0 :type fixnum))
+  (usec 0 :type fixnum)
+  (is-utc? nil :type boolean))
 
 (defun %print-wall-time (time stream depth)
   (declare (ignore depth))
@@ -111,24 +112,76 @@
 ;; ------------------------------------------------------------
 ;; Constructors
 
+(defvar *default-timezone*)
+(defvar *default-timezone-is-dst?*)
+
+;; allows non implementation specific timezone defaulting.
+;; Its mostly for testing, or setting directly to UTC
+;; as its assumed to be relying on operating system / lisp system
+;; defaults for what your local time is otherwise
+(defun %decode-utime (ut)
+  (multiple-value-bind
+        (sec min hour day month year day-of-week dst? tz)
+      (decode-universal-time ut)
+    (values sec min hour day month year day-of-week
+            (or (when (boundp '*default-timezone-is-dst?*)
+                  *default-timezone-is-dst?*)
+                dst?)
+            (or (when (boundp '*default-timezone*)
+                  *default-timezone*)
+                tz))))
+
+(defun %universal-ts-offset (time)
+  ;; I verified this using the local-time lib as example
+  ;; --- see tests/utc-time-compare.lisp
+  (multiple-value-bind (tusec tsec tmin thour tday tmonth tyear)
+      (decode-time time)
+    (declare (ignore tusec))
+    ;; find tz info and apply to wall-time
+    (multiple-value-bind
+          (_sec _min _hour _day _month _year _day-of-week dst? tz)
+        (%decode-utime
+         (encode-universal-time
+          tsec tmin thour tday tmonth tyear))
+      (declare (ignore _sec _min _hour _day _month _year _day-of-week))
+      (when dst?
+        (incf tz -1))
+      (values (- (* tz 60 60)) tz))))
+
+(defun time-to-utc (in)
+  "Ensures that if we have a time thats not in UTC, treat it as a localtime,
+   and convert to UTC"
+  (if (time-is-utc? in)
+      in
+      (let ((newt
+              (time+ in (make-duration :second (%universal-ts-offset in)))))
+        (setf (time-is-utc? newt) T)
+        newt)))
+
 (defun make-time (&key (year 0) (month 1) (day 1) (hour 0) (minute 0)
-                       (second 0) (usec 0) (offset 0))
-  (let ((mjd (gregorian-to-mjd month day year))
-        (sec (+ (* hour 60 60)
-                (* minute 60)
-                second (- offset))))
-    (multiple-value-bind (day-add raw-sec)
-        (floor sec (* 60 60 24))
-      (%make-wall-time :mjd (+ mjd day-add) :second raw-sec :usec usec))))
+                  (second 0) (usec 0) (offset nil))
+  (let* ((mjd (gregorian-to-mjd month day year))
+         (sec (+ (* hour 60 60)
+                 (* minute 60)
+                 second (or offset 0)))
+         (time (multiple-value-bind (day-add raw-sec)
+                   (floor sec (* 60 60 24))
+                 (%make-wall-time :mjd (+ mjd day-add)
+                                  :second raw-sec :usec (or usec 0)
+                                  :is-utc? (if offset t nil)))))
+    time))
 
 (defun make-date (&key (year 0) (month 1) (day 1) (hour 0) (minute 0)
-                       (second 0) (usec 0) (offset 0))
+                       (second 0) (usec 0) (offset nil))
   (time->date (make-time :year year :month month :day day :hour hour
-                         :minute minute :second second :usec usec :offset offset)))
+                         :minute minute :second second :usec usec
+                         :offset offset)))
 
 (defun copy-time (time)
   (%make-wall-time :mjd (time-mjd time)
-                   :second (time-second time)))
+                   :second (time-second time)
+                   :usec (time-usec time)
+                   :is-utc? (time-is-utc? time)))
 
 (defun utime->time (utime)
   "Return a pair: (GREGORIAN DAY . TIME-OF-DAY)"
@@ -196,7 +249,9 @@
       (time-ymd time)
     (multiple-value-bind (hour minute second)
         (time-hms time)
-      (values (time-usec time) second minute hour day month year (mod (+ (time-mjd time) 3) 7)))))
+      (values (time-usec time) second minute hour day month year
+              (mod (+ (time-mjd time) 3) 7)
+              (time-is-utc? time)))))
 
 (defun date-ymd (date)
   (time-ymd (date->time date)))
@@ -263,6 +318,8 @@
   (duration< y x))
 
 (defun %time< (x y)
+  (setf x (time-to-utc x)
+        y (time-to-utc y))
   (let ((mjd-x (time-mjd x))
         (mjd-y (time-mjd y)))
     (if (/= mjd-x mjd-y)
@@ -272,6 +329,8 @@
             (< (time-usec x) (time-usec y))))))
 
 (defun %time>= (x y)
+  (setf x (time-to-utc x)
+        y (time-to-utc y))
   (if (/= (time-mjd x) (time-mjd y))
       (>= (time-mjd x) (time-mjd y))
       (if (/= (time-second x) (time-second y))
@@ -279,6 +338,8 @@
           (>= (time-usec x) (time-usec y)))))
 
 (defun %time<= (x y)
+  (setf x (time-to-utc x)
+        y (time-to-utc y))
   (if (/= (time-mjd x) (time-mjd y))
       (<= (time-mjd x) (time-mjd y))
       (if (/= (time-second x) (time-second y))
@@ -286,6 +347,8 @@
           (<= (time-usec x) (time-usec y)))))
 
 (defun %time> (x y)
+  (setf x (time-to-utc x)
+        y (time-to-utc y))
   (if (/= (time-mjd x) (time-mjd y))
       (> (time-mjd x) (time-mjd y))
       (if (/= (time-second x) (time-second y))
@@ -293,6 +356,8 @@
           (> (time-usec x) (time-usec y)))))
 
 (defun %time= (x y)
+  (setf x (time-to-utc x)
+        y (time-to-utc y))
   (and (= (time-mjd x) (time-mjd y))
        (= (time-second x) (time-second y))
        (= (time-usec x) (time-usec y))))
@@ -427,14 +492,14 @@
 
 ;; ------------------------------------------------------------
 ;; Formatting and output
-(defun db-timestring (time &key stream)
+(defun db-timestring (time &key stream )
   "return the string to store the given time in the database"
   (if stream
       (progn (write-char #\' stream) (iso-timestring time :stream stream) (write-char #\' stream))
       (concatenate 'string "'" (iso-timestring time) "'")))
 
 (defun iso-timestring (time &key stream)
-  (multiple-value-bind (usec sec min hour day month year dow)
+  (multiple-value-bind (usec sec min hour day month year dow is-utc?)
       (decode-time time)
     (declare (ignore dow))
     (flet ((fmt (stream)
@@ -467,6 +532,7 @@
 			  (setf usec (- usec (* quo x10)))
 			  (princ quo stream)
 			  (when (= rem 0) (return)))))
+             (when is-utc? (princ #\Z stream))
 	     nil))
       (if stream
 	  (fmt stream)
@@ -824,7 +890,7 @@ with the given options"
   "produces on stream the timestring corresponding to the wall-time
 with the given options"
   (let ((*print-circle* nil))
-    (multiple-value-bind (usec second minute hour day month year dow)
+    (multiple-value-bind (usec second minute hour day month year dow is-utc?)
         (decode-time time)
       (case format
         (:pretty
@@ -839,11 +905,12 @@ with the given options"
 		   (pretty-time hour minute)
 		   month day year))
         ((:iso :iso8601) (iso-timestring time :stream stream))
-        (t (format stream "~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D.~6,'0D"
+        (t (format stream "~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D~A~2,'0D.~6,'0D~A"
 		   year date-separator month date-separator day
 		   internal-separator hour time-separator minute time-separator
-		   second usec)
-	   )))))
+		   second usec
+                   (if is-utc? "Z" ""))
+         )))))
 
 (defun pretty-time (hour minute)
   (cond
@@ -1178,11 +1245,13 @@ rules"
 ;; Parsing iso-8601 timestrings
 
 (define-condition iso-8601-syntax-error (sql-user-error)
-  ((bad-component;; year, month whatever
+  ((input :initarg :input :reader input)
+   (bad-component;; year, month whatever
     :initarg :bad-component
     :reader bad-component))
   (:report (lambda (c stream)
-             (format stream "Bad component: ~A " (bad-component c)))))
+             (format stream "Bad component: ~A of input: ~A "
+                     (bad-component c) (input c)))))
 
 (defun parse-timestring (timestring &key (start 0) end junk-allowed)
   "parse a timestring and return the corresponding wall-time.  If the
@@ -1290,6 +1359,40 @@ Will throw a hissy fit if the date string is a duration. Will ignore any precisi
                :usec usec
                :offset offset)))
 
+(defun %frac-string-to-usec (frac-str)
+  (when frac-str
+    (let* ((frac (parse-integer frac-str))
+           (frac-len (length frac-str))
+           (frac-exp (- 6 frac-len)))
+      (floor (* frac (expt 10 frac-exp))))))
+
+(defun %parse-offset-string (offset-str input &aux (len (length offset-str)))
+  (when (zerop len)
+    (return-from %parse-offset-string nil))
+  (when (and (= len 1) (char= #\Z (char offset-str 0)))
+    (return-from %parse-offset-string 0))
+  (let ((pos? (char= #\+ (char offset-str 0)))
+        (colon? (position #\: offset-str)))
+    (unless (or (member len '(3 5))     ;; +05 or -0530
+                (and colon? (= 6 len))) ;; +05:30
+      (error 'iso-8601-syntax-error
+             :input input
+             :bad-component `(timezone . ,offset-str)))
+    (handler-bind ((error (lambda (c) (declare (ignore c))
+                            (error 'iso-8601-syntax-error
+                                   :input input
+                                   :bad-component `(timezone . ,offset-str))
+                            )))
+      (let* ((hours (parse-integer offset-str :start 1 :end 3))
+             (hsec (* 60 60 hours))
+             (sec (* 60 (cond
+                          (colon?
+                           (parse-integer offset-str :start 4))
+                          ((> len 3)
+                           (parse-integer offset-str :start 3))
+                          (t 0))))
+             (total (+ hsec sec)))
+        (if pos? (- total) total)))))
 
 (defun syntax-parse-iso-8601 (string)
   ;; use strlen to determine if fractional seconds are present in timestamp
@@ -1309,45 +1412,36 @@ Will throw a hissy fit if the date string is a duration. Will ignore any precisi
                 second         (if (<= 19 strlen)
                                    (parse-integer string :start 17 :end 19)
                                    0))
-          (cond
-            ((and (> strlen 19)
-                  (or (char= #\, (char string 19))
-                      (char= #\. (char string 19))))
-             (multiple-value-bind (parsed-usec usec-end)
-                 (parse-integer string :start 20 :junk-allowed t)
-               (let ((parsed-usec (and parsed-usec
-				       (floor (* parsed-usec (expt 10 (+ 6 (- usec-end) 20)))))))
-		 (setf usec          (or parsed-usec 0)
-		       gmt-sec-offset (if (<= (+ 3 usec-end)  strlen)
-					  (let ((skip-to (or (position #\+ string :start 19)
-							     (position #\- string :start 19))))
-					    (if skip-to
-						(* 60 60
-						   (parse-integer string :start skip-to
-								  :end (+ skip-to 3)))
-						0))
-					  0)))))
-            (t
-             (setf usec           0
-                   gmt-sec-offset (if (<= 22  strlen)
-                                      (let ((skip-to (or (position #\+ string :start 19)
-                                                         (position #\- string :start 19))))
-                                        (if skip-to
-                                            (* 60 60
-                                               (parse-integer string :start skip-to
-                                                              :end (+ skip-to 3)))
-                                            0))
-                                      0))))
-          (unless (< 0 year)
-            (error 'iso-8601-syntax-error
-                   :bad-component '(year . 0)))
-          (unless (< 0 month)
-            (error 'iso-8601-syntax-error
-                   :bad-component '(month . 0)))
-          (unless (< 0 day)
-            (error 'iso-8601-syntax-error
-                   :bad-component '(month . 0)))
-          (values year month day hour minute second usec gmt-sec-offset))
+          (when (> strlen 19)
+            ;; fractional second
+            (let* ((has-frac? (or (char= #\, (char string 19))
+                                   (char= #\. (char string 19))))
+                   (z-idx (position #\Z string :start 19))
+                   (offset-start (or (position #\+ string :start 19)
+                                     (position #\- string :start 19)))
+                   (frac-end (or z-idx offset-start strlen ))
+                   (frac-string (when has-frac? (subseq string 20 frac-end)))
+                   (offset-string (when offset-start
+                                    (subseq string offset-start))))
+              (setf usec (or (%frac-string-to-usec frac-string)
+                             0)
+                    gmt-sec-offset
+                    (cond
+                      (z-idx 0)
+                      (offset-string
+                       (%parse-offset-string offset-string string))))))
+
+            (unless (< 0 year)
+              (error 'iso-8601-syntax-error
+                     :input string
+                     :bad-component '(year . 0)))
+            (unless (< 0 month)
+              (error 'iso-8601-syntax-error
+                     :bad-component '(month . 0)))
+            (unless (< 0 day)
+              (error 'iso-8601-syntax-error
+                     :bad-component '(month . 0)))
+            (values year month day hour minute second usec gmt-sec-offset))
       (simple-error ()
         (error 'iso-8601-syntax-error
                :bad-component
@@ -1355,5 +1449,4 @@ Will throw a hissy fit if the date string is a duration. Will ignore any precisi
                              `((year . ,year) (month . ,month)
                                (day . ,day) (hour . ,hour)
                                (minute . ,minute) (second . ,second)
-                               (usec . ,usec)
-                               (timezone . ,gmt-sec-offset)))))))))
+                               (usec . ,usec)))))))))
