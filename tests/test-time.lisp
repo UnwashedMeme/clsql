@@ -90,7 +90,17 @@
 (deftest :time/iso-parse/8
     (let* ((time1 (parse-timestring "2010-01-23T14:56:32-05:30")))
       (decode-time time1))
-  0 32 26 20 23 1 2010 6 t)
+ 0 32 26 20 23 1 2010 6 t)
+
+(deftest :time/utc-round-trip/1
+    (let* ((time1 (parse-timestring "2010-01-23T14:56:32")))
+      (decode-time (time-to-localtime (time-to-utc time1))))
+ 0 32 56 14 23 1 2010 6 nil)
+
+(deftest :time/utc-round-trip/2
+    (let* ((time1 (parse-timestring "2010-01-23T14:56:32Z")))
+      (decode-time (time-to-utc (time-to-localtime time1))))
+  0 32 56 14 23 1 2010 6 t)
 
 (deftest :time/print-parse/1
     ;;make sure when we print and parse we get the same time.

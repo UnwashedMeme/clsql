@@ -573,6 +573,8 @@
          #:gregorian-to-mjd
          #:mjd-to-gregorian
          #:iso-timestring
+         #:time-to-utc
+         #:time-to-localtime
          ))
     (:documentation "This is the INTERNAL SQL-Interface package of CLSQL."))
 

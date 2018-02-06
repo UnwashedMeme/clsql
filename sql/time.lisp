@@ -158,6 +158,16 @@
         (setf (time-is-utc? newt) T)
         newt)))
 
+(defun time-to-localtime (in)
+  "Ensures that if we have a time thats not in UTC, treat it as a localtime,
+   and convert to UTC"
+  (if (not (time-is-utc? in))
+      in
+      (let ((newt
+              (time+ in (make-duration :second (- (%universal-ts-offset in))))))
+        (setf (time-is-utc? newt) nil)
+        newt)))
+
 (defun make-time (&key (year 0) (month 1) (day 1) (hour 0) (minute 0)
                   (second 0) (usec 0) (offset nil))
   (let* ((mjd (gregorian-to-mjd month day year))
