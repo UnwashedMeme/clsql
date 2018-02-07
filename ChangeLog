@@ -1,3 +1,11 @@
+2018-02-04 Russ Tyndall <russ@acceleration.net>
+	* sql/generic-postgres.lisp:	
+	Wall times default to being timestamptz in postgresql now.
+	There was a TODO questioning why it was storing zoneless by
+	default - it was because of the bugs about tracking UTC
+	vs zoneless
+
+	
 2018-02-03 Russ Tyndall <russ@acceleration.net>
 	* sql/time.lisp, tests/time.lisp:	
 	Better distinguishing between zoneless timestamps and UTC times,

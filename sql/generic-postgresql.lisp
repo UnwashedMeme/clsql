@@ -25,8 +25,10 @@
   "Special database types for POSTGRESQL backends"
   (declare (ignore database db-type))
   (case type
-    (wall-time ;; TODO: why is this WITHOUT...
-     "TIMESTAMP WITHOUT TIME ZONE")
+    ;; his used to be without because we didnt track timezones well
+    ;; Now we do, so it should include them
+    (wall-time
+     "TIMESTAMP WITH TIME ZONE")
     (string
      ;; TODO: the default to CHAR here seems specious as the PG docs claim
      ;; that char is slower than varchar
