@@ -146,7 +146,7 @@
       (declare (ignore _sec _min _hour _day _month _year _day-of-week))
       (when dst?
         (incf tz -1))
-      (values (- (* tz 60 60)) tz))))
+      (values (* tz 60 60) tz))))
 
 (defun time-to-utc (in)
   "Ensures that if we have a time thats not in UTC, treat it as a localtime,

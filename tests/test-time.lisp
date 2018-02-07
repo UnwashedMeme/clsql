@@ -37,7 +37,7 @@
 
 (def-dataset *cross-platform-datetest*
   (:setup (lambda () (create-table [datetest]
-				   '(([testtime] wall-time)))))
+				   '(([testtime] "timestamp")))))
   (:cleanup (lambda ()
 	      (drop-table [datetest]))))
 
@@ -487,7 +487,60 @@
         )))
   #.(format-time nil (parse-timestring "1800-09-09T14:37:29") :format :iso))
 
+
+
+(deftest :time/to-utc/0
+ (let* ((clsql-sys::*default-timezone* 5)
+        (clsql-sys::*default-timezone-is-dst?* nil)
+        (ts (parse-timestring "2018-02-08T15:43:29-05"))
+        (utc-ts (time-to-utc ts))
+        (lt-ts (time-to-localtime utc-ts))
+        (lt-again (time-to-localtime (time-to-utc lt-ts))))
+   (values
+    (format-time nil utc-ts :format :iso)
+    (format-time nil lt-ts :format :iso)
+    (format-time nil lt-again :format :iso)))
+ #.(format-time nil (parse-timestring "2018-02-08T20:43:29Z") :format :iso)
+ #.(format-time nil (parse-timestring "2018-02-08T15:43:29") :format :iso)
+ #.(format-time nil (parse-timestring "2018-02-08T15:43:29") :format :iso)
+
+ )
+
+(deftest :time/to-utc/1
+ (let* ((clsql-sys::*default-timezone* 5)
+        (clsql-sys::*default-timezone-is-dst?* t)
+        (ts (parse-timestring "2018-08-08T16:43:29-04"))
+        (utc-ts (time-to-utc ts))
+        (lt-ts (time-to-localtime utc-ts))
+        (lt-again (time-to-localtime (time-to-utc lt-ts))))
+   (values
+    (format-time nil utc-ts :format :iso)
+    (format-time nil lt-ts :format :iso)
+    (format-time nil lt-again :format :iso)))
+ #.(format-time nil (parse-timestring "2018-08-08T20:43:29Z") :format :iso)
+ #.(format-time nil (parse-timestring "2018-08-08T16:43:29") :format :iso)
+ #.(format-time nil (parse-timestring "2018-08-08T16:43:29") :format :iso)
+
+ )
+
+(deftest :time/to-utc/2
+ (let* ((clsql-sys::*default-timezone* -1)
+        (clsql-sys::*default-timezone-is-dst?* nil)
+        (ts (parse-timestring "2018-02-08T16:43:29+01"))
+        (utc-ts (time-to-utc ts))
+        (lt-ts (time-to-localtime utc-ts))
+        (lt-again (time-to-localtime (time-to-utc lt-ts))))
+   (values
+    (format-time nil utc-ts :format :iso)
+    (format-time nil lt-ts :format :iso)
+    (format-time nil lt-again :format :iso)))
+ #.(format-time nil (parse-timestring "2018-02-08T15:43:29Z") :format :iso)
+ #.(format-time nil (parse-timestring "2018-02-08T16:43:29") :format :iso)
+ #.(format-time nil (parse-timestring "2018-02-08T16:43:29") :format :iso)
+
+ )
 ))
+
 
 
 
