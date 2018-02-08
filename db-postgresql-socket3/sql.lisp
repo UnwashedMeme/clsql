@@ -37,10 +37,9 @@
            (setf (clsql-sys::time-is-utc? dt) t)
            dt)
          (dt-fn (useconds-since-2000)
-           (let* ((sec (floor useconds-since-2000 1000000))
-                  (usec (mod useconds-since-2000 1000000))
-                  (time (clsql:make-time :year 2000 :second sec :usec usec)))
-             time)))
+           (multiple-value-bind (sec usec)
+               (floor useconds-since-2000 1000000)
+             (clsql:make-time :year 2000 :second sec :usec usec))))
   (cl-postgres:set-sql-datetime-readers
    :table *sqlreader*
    :timestamp #'dt-fn
