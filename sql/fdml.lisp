@@ -54,8 +54,9 @@
   (values))
 
 (defmethod execute-command ((expr %sql-expression)
-                            &key (database *default-database*))
-  (execute-command (sql-output expr database) :database database)
+                            &key (database *default-database*)
+                            &aux (str-sql (sql-output expr database)))
+  (execute-command str-sql :database database)
   (values))
 
 (defmethod query ((query-expression string) &key (database *default-database*)

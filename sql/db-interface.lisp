@@ -498,3 +498,8 @@ for foreign libraries \(in addition to the default places).")
   "Adds the pathspec PATH \(which should denote a directory) to
 the list *FOREIGN-LIBRARY-SEARCH-PATHS*."
   (pushnew path *foreign-library-search-paths* :test #'equal))
+
+(defgeneric database-escape-backslashes (database)
+  (:documentation "Should backslases in a string be escaped? ")
+  (:method ( database )
+    nil))

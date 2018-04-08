@@ -1,3 +1,21 @@
+2018-04-08 Russ Tyndall <russ@acceleration.net>
+        * sql/db-interface, expressions, fdml, generic-postgres
+	db-mysql/mysql-sql.lisp db-postgresql-socket3/sql.lisp
+
+        - I created a new protocol function (database-escape-backslashes
+          database)
+        - I changed the the generic mysql and postgres databases
+	  to return T
+        - I made the postgresql-socket3 backend check for
+	  standards_conforming_string which is exposed in the underlying
+	  cl-postgres connection
+	- It seems likely that postgresql-socket3 could always return NIL, as
+	  cl-postgres would probably handle this escaping anyway
+
+   	  This replaced some special case code in (database-output-sql (string
+	  database))
+
+	
 2018-02-04 Russ Tyndall <russ@acceleration.net>
 	* sql/generic-postgres.lisp:	
 	Wall times default to being timestamptz in postgresql now.

@@ -420,13 +420,13 @@
 
 (defmethod output-sql ((expr sql-assignment-exp) database)
   (with-slots (operator sub-expressions)
-    expr
-    (do ((sub sub-expressions (cdr sub)))
-        ((null (cdr sub)) (output-sql (car sub) database))
-      (output-sql (car sub) database)
+      expr
+    (output-sql (car sub-expressions) database)
+    (dolist (sub (cdr sub-expressions))
       (write-char #\Space *sql-stream*)
       (%write-operator operator database)
-      (write-char #\Space *sql-stream*)))
+      (write-char #\Space *sql-stream*)
+      (output-sql sub database)))
   t)
 
 (defclass sql-value-exp (%sql-expression)
@@ -1009,9 +1009,7 @@ uninclusive, and the args from that keyword to the end."
                         (setf (aref buf j) #\'))
                        ((and (char= char #\\)
                              ;; MTP: only escape backslash with pgsql/mysql
-                             (member (database-underlying-type database)
-                                     '(:postgresql :mysql)
-                                     :test #'eq))
+                             (database-escape-backslashes database))
                         (setf (aref buf j) #\\)
                         (incf j)
                         (setf (aref buf j) #\\))

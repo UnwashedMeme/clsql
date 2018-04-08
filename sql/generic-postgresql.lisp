@@ -429,3 +429,6 @@
 
 (defmethod db-type-has-auto-increment? ((db-type (eql :postgresql)))
   t)
+
+(defmethod clsql-sys::database-escape-backslashes ((database generic-postgresql-database))
+  t)

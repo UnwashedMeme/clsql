@@ -331,3 +331,12 @@
   (clsql-sys:initialize-database-type :database-type :postgresql-socket3))
 
 
+
+;; TODO: there is a good chance this could always return nil as cl-postgres probably
+;; handles this nonsense anyway
+(defmethod clsql-sys::database-escape-backslashes ((database postgresql-socket3-database))
+  (let* ((it (gethash "standard_conforming_strings"
+                      (cl-postgres:connection-parameters
+                       (slot-value database 'connection))))
+         (sit (and it (string it))))
+    (and it (not (string-equal sit "on")))))

@@ -846,3 +846,6 @@
 
 (when (clsql-sys:database-type-library-loaded :mysql)
   (clsql-sys:initialize-database-type :database-type :mysql))
+
+(defmethod clsql-sys::database-escape-backslashes ((database mysql-database))
+  t)
