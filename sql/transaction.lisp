@@ -98,14 +98,17 @@ is called on DATABASE which defaults to *DEFAULT-DATABASE*."
 which is *DEFAULT-DATABASE* by default, and executes BODY within
 that transaction. If BODY aborts or throws, DATABASE is rolled
 back and otherwise the transaction is committed."
-  (let ((db (gensym "db-")))
-    `(let ((,db ,database))
+  (let ((db (gensym "db-"))
+        (ret (gensym "ret-")))
+    `(let ((,db ,database)
+           ,ret)
       (unwind-protect
            (prog2
              (database-start-transaction ,db)
-             (progn
-               ,@body)
-             (mark-transaction-committed ,db))
+             (setf ,ret (progn
+                          ,@body))
+             (mark-transaction-committed ,db)
+             ,ret)
         (if (eq (transaction-status (transaction ,db)) :committed)
             (database-commit-transaction ,db)
             (database-abort-transaction ,db))))))
@@ -149,4 +152,3 @@ Autocommit is turned on by default."
     (setf (database-autocommit database) value)
     (database-autocommit database)
     old-value))
-
