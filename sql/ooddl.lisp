@@ -41,7 +41,7 @@
       (unless (slot-boundp instance slot-name)
         (let ((*db-deserializing* t))
           (cond
-            ((join-slot-p slot-def)
+            ((join-slot-p slot-object)
              (setf (slot-value instance slot-name)
                    (if (view-database instance)
                        (fault-join-slot class instance slot-object)
@@ -49,11 +49,12 @@
                        ;; its joined-to object was not in the database
                        nil
                        )))
-            ((not-direct-normalized-slot-p class slot-def)
+            ((not-direct-normalized-slot-p class slot-object)
              (if (view-database instance)
-                 (update-fault-join-normalized-slot class instance slot-def)
+                 (update-fault-join-normalized-slot class instance slot-object)
                  (setf (slot-value instance slot-name) nil))))))))
   (call-next-method))
+
 
 (defmethod (setf slot-value-using-class) (new-value (class standard-db-class)
                                           instance slot-def)
@@ -236,13 +237,14 @@ option specifies the value to store if the SQL value is NULL and
 defaults to NIL. The :db-constraints slot option is a string
 representing an SQL table constraint expression or a list of such
 strings."
-  `(progn
-     (defclass ,class ,supers ,slots
-       ,@(if (find :metaclass `,cl-options :key #'car)
-             `,cl-options
-             (cons '(:metaclass clsql-sys::standard-db-class) `,cl-options)))
-     (finalize-inheritance (find-class ',class))
-     (find-class ',class)))
+  (let ((cl-options `(#+lispworks (:optimize-slot-access nil) ,@cl-options)))
+   `(progn
+      (defclass ,class ,supers ,slots
+        ,@(if (find :metaclass `,cl-options :key #'car)
+              `,cl-options
+              (cons '(:metaclass clsql-sys::standard-db-class) `,cl-options)))
+      (finalize-inheritance (find-class ',class))
+      (find-class ',class))))
 
 (defun keyslots-for-class (class)
   (slot-value class 'key-slots))
